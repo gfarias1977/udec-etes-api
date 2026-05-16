@@ -1,0 +1,288 @@
+openapi: 3.0.1
+
+info:
+  version: "1.0.0"
+  title: "API Ediciones Técnicas"
+  description: |
+    Bienvenido a la API de Ediciones Técnicas, desarrollado por <b>g.</b>
+  contact:
+    email: gustavo.farias.e@gmail.com
+
+servers:
+  - url: /api/v2
+
+tags:
+- name: "Cargar"
+  description: "Realizar carga de bultos"
+- name: "Auth"
+  description: "Autenticar usuario generando JWT"
+
+paths:
+
+  /auth:
+    post:
+      tags:
+      - "Auth"
+      summary: Permite realizar la autenticación de los usuarios externos.
+
+      requestBody:
+        description: Datos de usuario a autenticar.
+        content:
+            application/json:
+             schema:
+              $ref: '#/components/schemas/Auth'
+      responses:
+        200:
+          description: Operación exitosa
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    description: 'Tipo de respuesta entregada'
+                    enum: [ok]
+                    example: 'ok'
+                  status:
+                    type: number
+                    description: 'Código HTTP de la respuesta Obtenida'
+                    example: 200
+                  token:
+                    type: string
+                    description: 'Token generado para el usuario validado'
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNSIsImlhdCI6MTYxMzI3NjMzMSwiZXhwIjoxNjEzMjc5OTMxfQ.r9bYEhT0C4L6Uu6Ygj1_uLFTNycWAHig-osOZyhyeqW'
+
+        401:
+          description: Error de Autenticación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    description: 'Tipo de respuesta entregada'
+                    enum: [error]
+                    example: 'error'
+                  status:
+                    type: number
+                    description: 'Código HTTP de la respuesta Obtenida'
+                    example: 401
+                  token:
+                    type: string
+                    description: 'Mensaje con la descripción de la respuesta'
+                    enum: [ 'No se puede iniciar sesión!', 'Password Incorrecta!']
+                    example: 'Password Incorrecta!'
+        500:
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    description: 'Tipo de respuesta entregada'
+                    enum: [error]
+                    example: 'error'
+                  status:
+                    type: number
+                    description: 'Código HTTP de la respuesta Obtenida'
+                    example: 500
+                  token:
+                    type: string
+                    description: 'Mensaje con la descripción de la respuesta'
+                    enum: [ 'Error interno del servidor!']
+                    example: 'Error interno del servidor!'
+
+  /cargar:
+    post:
+      security:
+      - bearerAuth: []  
+      tags:
+      - "Cargar"
+      summary: Permite realizar la carga de bultos.
+
+      requestBody:
+        description: Los bultos que serán cargados.
+        content:
+            application/json:
+             schema:
+              $ref: '#/components/schemas/Cargar'
+
+      responses:
+        201:
+          description: Operación exitosa
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    description: 'Tipo de respuesta entregada'
+                    enum: [ok]
+                    example: 'ok'
+                  status:
+                    type: number
+                    description: 'Código HTTP de la respuesta Obtenida'
+                    example: 201
+                  token:
+                    type: string
+                    description: 'Datos han sido cargados'
+        401:
+          description: Error de Autenticación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    description: 'Tipo de respuesta entregada'
+                    enum: [error]
+                    example: 'error'
+                  status:
+                    type: number
+                    description: 'Código HTTP de la respuesta Obtenida'
+                    example: 401
+                  token:
+                    type: string
+                    description: 'Mensaje con la descripción de la respuesta'
+                    enum: [ 'jwt expired','Acceso denegado. No se enviaron las credenciales!', 'Fallo en autenticación!', 'No Autorizado']
+                    example: 'Fallo en autenticación!'
+        500:
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    description: 'Tipo de respuesta entregada'
+                    enum: [error]
+                    example: 'error'
+                  status:
+                    type: number
+                    description: 'Código HTTP de la respuesta Obtenida'
+                    example: 500
+                  token:
+                    type: string
+                    description: 'Mensaje con la descripción de la respuesta'
+                    enum: [ 'Error interno del servidor!']
+                    example: 'Error interno del servidor!'
+    
+components:
+  schemas:
+
+    Auth:
+      properties:
+        usuario:
+          type: string
+          description: 'Nombre de usuario de empresa que realiza la carga'
+          example: 'transgamboa'
+        password:
+          type: string
+          description: 'Contraseña del usuario'
+          example: 'T5L45CLD'
+
+    Cargar:
+      properties:
+        catalogo:
+          type: array
+          items:
+            type: object
+            $ref: '#/components/schemas/Catalogo'
+            required: true
+            description: 'Detalle de la carga con las distintas guías a cargar'
+
+    Catalogo:
+      properties:
+        CodBlt:
+          type: string
+          description: 'Código de barra que debe estar en el bulto o paquete'
+          example: '00000999990303331077'
+        FecDes:
+          type: string
+          description: 'Fecha en la que se despacha a la empresa de transporte'
+          format: date-time
+          example: '2020-01-25 11:00'
+        FecGui:
+          type: string
+          description: 'Fecha en que se genera la guía'
+          format: date-time
+          example: '2021-01-24 13:00'
+        NroGui:
+          type: string
+          description: 'Número de guía asociado al bulto o paquete'
+          example: '15776656'
+        NomDes:
+          type: string
+          description: 'Nombre de cliente final al cuál se le debe entregar el pedido'
+          example: 'Alejandra Altamirano'
+        DirDes:
+          type: string
+          description: 'Dirección del destinatario final (La información debe ser lo más detallada posible)'
+          example: 'Santa Elena 999991, casa 1728'
+        DesCom:
+          type: string
+          description: 'Comuna del destinatario'
+          example: 'QUINTA NORMAL'
+        Telefo:
+          type: string
+          description: 'Fono del destinatario para comunicar eventualidades'
+          example: '998776545'
+        DscPrd:
+          type: string
+          description: 'Detalle producto'
+          example: 'ALMOHADA EXTRA 50X70'
+        CanTid:
+          type: string
+          description: 'Cantidad de bultos asociados (Número de referencia, si corresponde a 5 paquetes\n
+                       + se deben cargar en paralelo los 5 paquetes'
+          example: '2'
+        Precio:
+          type: string
+          description: 'Precio del producto, el formato debe ser en texto sin decimales'
+          example: '15990'
+        Cemail:
+          type: string
+          description: 'Correo electrónico del destinatario'
+          example: 'alejandra@gmail.com'
+        NroCot:
+          type: string
+          description: 'Código interno de la empresa que suba la información'
+          example: '107161843'
+        Desest:
+          type: string
+          description: 'Estado interno del bulto'
+          example: '2 - EN TRANSITO'
+        FchCambEst:
+          type: string
+          description: 'Fecha del último cambio de estado'
+          format: date-time
+          example: '2021-01-24 14:00'
+        SucDes:
+          type: string
+          description: 'Nombre o código de la sucursal de la cuál se retira el producto'
+          example: '1080'
+        NroBol:
+          type: string
+          description: 'Número de boleta del bulto'
+          example: '197034'
+        RutClie:
+          type: string
+          description: 'Rut cliente'
+          example: '15915915-9'
+        MtrCub:
+          type: string
+          description: 'Metros cúbicos del bulto'
+          example: '0,024'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
