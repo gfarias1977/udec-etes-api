@@ -10,61 +10,60 @@ var bodyParser = require('body-parser');
 const swaggerUi = require('swagger-ui-express')
 //const swaggerFile = require('../swagger-output.json')
 
+const app = express();
+
+// enabling cors for all requests by using cors middleware
+const whitelist = ['https://etes-app-dev.herokuapp.com', 'https://etes-app-prod.herokuapp.com', 'http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:3005'];
+
+// Enable pre-flight
+// app.options("*", cors());
+const corsOptions = {
+    origin: whitelist
+};
+
+app.use(cors(corsOptions));
+
+app.use(bodyParser.urlencoded({
+    limit: "50mb",
+    extended: false
+  }));
+app.use(bodyParser.json({limit: "50mb"}));
+
+app.use(express.json({ reviver: reviveJson }));
+
+// Documentación swagger de la API
+// app.use('/api/v1/api-docs', routes.swaggerDocV1);
+
+// el resto de las rutas
+app.use('/api/v1', routes.v1);
+
+// Documentacion swagger
+//app.use('/doc', swaggerUi.serve, swaggerUi.setup(swaggerFile))
+// 404 error
+// app.all('*', (req, res, next) => {
+//     next(err);
+// });
+
+// Error middleware
+app.use(errorMiddleware);
+
 let httpServer;
 
 function initialize(puerto) {
     return new Promise((resolve, reject) => {
-
-        const app = express();
-        
-        // enabling cors for all requests by using cors middleware
-        const whitelist = ['https://etes-app-dev.herokuapp.com', 'https://etes-app-prod.herokuapp.com', 'http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:3005'];
-        
-        // Enable pre-flight
-        // app.options("*", cors());
-        const corsOptions = {
-            origin: whitelist
-        };
-        
-        app.use(cors(corsOptions));
-        
-        app.use(bodyParser.urlencoded({
-            limit: "50mb",
-            extended: false
-          }));
-        app.use(bodyParser.json({limit: "50mb"}));
-        
-        app.use(express.json({ reviver: reviveJson }));
-
         const port = Number(process.env.PORT || 3331);
-
-        // Documentación swagger de la API
-       // app.use('/api/v1/api-docs', routes.swaggerDocV1);
-
-        // el resto de las rutas
-        app.use('/api/v1', routes.v1);
-
-        // Documentacion swagger
-        //app.use('/doc', swaggerUi.serve, swaggerUi.setup(swaggerFile))
-        // 404 error
-        // app.all('*', (req, res, next) => {
-        //     next(err);
-        // });
-
-        // Error middleware
-        app.use(errorMiddleware);
 
         httpServer = app.listen(port, () =>{
             console.log("Server is running!\nAPI documentation: http://localhost:3000/doc")
             console.log(`🚀 Server ejecutándose en puerto ${port}!`)
-        
+            resolve();
         });
         httpServer.setTimeout(10800000);
-
     });
 }
 
 module.exports.initialize = initialize;
+module.exports.app = app;
 
 function close() {
     return new Promise((resolve, reject) => {
