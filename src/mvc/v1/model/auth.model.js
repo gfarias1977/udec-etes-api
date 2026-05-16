@@ -28,28 +28,37 @@ const findUserByID = async( userID, companyId ) => {
     try {
         
         const sqlGetUserByID = `
-            SELECT t1.USER_ID                                                                                 AS "userId",
-                    t1.USER_TAXPAYER_ID                                                                       AS "userRut",
-                    t1.USER_NAME                                                                              AS "userName",
-                    INITCAP( t1.user_first_name || ' ' || t1.user_middle_name || ' ' || t1.user_last_name )   AS "userDescription",
-                    t1.USER_EMAIL                                                                             AS "userEmail",
-                    TRIM( t1.USER_STATUS )                                                                    AS "userStatus",
-                    t1.USER_CREATION_DATE                                                                     AS "userCreationDate",
-                    (SELECT json_agg(json_build_object(
-                            'role_id', t02.role_id,
-                            'role_order', t02.role_order,
-                            'role_name', t02.role_name
-                        ))
-                        FROM tbl_user_roles t01
-                        JOIN tbl_roles t02
-                            ON t01.usro_role_id = t02.role_id
-                        WHERE t01.usro_user_id = t1.user_id
-                            AND t02.role_status = 'S'
-                    ) as "userRoles"
-            FROM tbl_user t1
-            WHERE t1.user_id                =   $1
-                AND t1.user_company_id        =   $2
-            ORDER BY t1.user_id
+        SELECT 
+            t1.USER_ID AS "userId",
+            t1.USER_TAXPAYER_ID AS "userRut",
+            t1.USER_NAME AS "userName",
+            INITCAP(TRIM(CONCAT_WS(' ', 
+                t1.user_first_name, 
+                t1.user_middle_name, 
+                t1.user_last_name
+            ))) AS "userDescription",
+            t1.USER_EMAIL AS "userEmail",
+            TRIM(t1.USER_STATUS) AS "userStatus",
+            t1.USER_CREATION_DATE AS "userCreationDate",
+            COALESCE(
+                (SELECT JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                        'role_id', t02.role_id,
+                        'role_order', t02.role_order,
+                        'role_name', t02.role_name
+                    )
+                )
+                FROM tbl_user_roles t01
+                JOIN tbl_roles t02 ON t01.usro_role_id = t02.role_id
+                WHERE t01.usro_user_id = t1.user_id
+                    AND t02.role_status = 'S'
+                ),
+                '[]'::json
+            ) AS "userRoles"
+        FROM tbl_user t1
+        WHERE t1.user_id = $1
+            AND t1.user_company_id = $2
+        ORDER BY t1.user_id;
 
     `;
 
