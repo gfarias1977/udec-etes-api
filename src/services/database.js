@@ -22,7 +22,10 @@ const poolPromise = new sql.ConnectionPool(config)
     console.log('Conectado a MSSQL')
     return pool
   })
-  .catch(err => console.log('Conexión a la BD ha fallado! Configuración incorrecta: ', err));
+  .catch(err => {
+    console.log('Conexión a la BD ha fallado! Configuración incorrecta: ', err);
+    throw err;
+  });
 
 module.exports = {
   sql, poolPromise
