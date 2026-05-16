@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 const ProcessModel = require('../model/process.model');
 const ProcessLogModel = require('../model/processLog.model');
@@ -23,68 +23,54 @@ const getAllGapSourceStockByParameters = async (
     try {
         const sqlGetAllGapSourceStock = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.gapst_id ASC) AS id
-              ,t1.gapst_id                      AS gapstId
-              ,t1.gapst_proc_id       		    AS gapstProcId
-              ,t1.gapst_proc_code			    AS gapstProcCode
-              ,t1.gapst_org_code			    AS gapstOrgCode
-              ,t3.org_description			    AS gapstOrgDescription
-              ,t1.gapst_camp_code			    AS gapstCampCode
-              ,t4.camp_description			    AS gapstCampDescription
-              ,t1.gapst_camp_library		    AS gapstCampLibrary
-              ,t1.gapst_camp_sub_library	    AS gapstCampSubLibrary
-              ,t1.gapst_city				    AS gapstCity
-              ,t1.gapst_item_code			    AS gapstItemCode
-              ,coalesce(t6.item_description,'') AS gapstItemDescription
-              ,coalesce(t6.item_value_01,'')    AS gapstItemTitulo
-              ,coalesce(t6.item_value_02,'')    AS gapstItemAutor
-              ,coalesce(t6.item_value_03,'')    AS gapstItemEditorial
-              ,t1.gapst_library_id			    AS gapstLibraryId
-              ,t1.gapst_item_id				    AS gapstItemId
-              ,t1.gapst_format				    AS gapstFormat
-              ,t1.gapst_format_type			    AS gapstFormatType
-              ,t1.gapst_volumen				    AS gapstVolumen
-          FROM dbo.tbl_gaps_source_stock  t1
-          LEFT JOIN dbo.tbl_process       t2 ON t2.proc_id   = t1.gapst_proc_id
-          LEFT JOIN dbo.tbl_organizations t3 ON t3.org_code  = t1.gapst_org_code
-          LEFT JOIN dbo.tbl_campus        t4 ON t4.camp_code = t1.gapst_camp_code and t4.camp_org_code = t1.gapst_org_code
-          LEFT JOIN dbo.tbl_cities        t5 ON t5.city_code = t1.gapst_city 
-          LEFT JOIN dbo.tbl_items         t6 ON t6.item_code = t1.gapst_item_code and t6.[item_purc_code] = @gapstPurcCode
+              ,t1.gapst_id                      AS "gapstId"
+              ,t1.gapst_proc_id       		    AS "gapstProcId"
+              ,t1.gapst_proc_code			    AS "gapstProcCode"
+              ,t1.gapst_org_code			    AS "gapstOrgCode"
+              ,t3.org_description			    AS "gapstOrgDescription"
+              ,t1.gapst_camp_code			    AS "gapstCampCode"
+              ,t4.camp_description			    AS "gapstCampDescription"
+              ,t1.gapst_camp_library		    AS "gapstCampLibrary"
+              ,t1.gapst_camp_sub_library	    AS "gapstCampSubLibrary"
+              ,t1.gapst_city				    AS "gapstCity"
+              ,t1.gapst_item_code			    AS "gapstItemCode"
+              ,coalesce(t6.item_description,'') AS "gapstItemDescription"
+              ,coalesce(t6.item_value_01,'')    AS "gapstItemTitulo"
+              ,coalesce(t6.item_value_02,'')    AS "gapstItemAutor"
+              ,coalesce(t6.item_value_03,'')    AS "gapstItemEditorial"
+              ,t1.gapst_library_id			    AS "gapstLibraryId"
+              ,t1.gapst_item_id				    AS "gapstItemId"
+              ,t1.gapst_format				    AS "gapstFormat"
+              ,t1.gapst_format_type			    AS "gapstFormatType"
+              ,t1.gapst_volumen				    AS "gapstVolumen"
+          FROM tbl_gaps_source_stock  t1
+          LEFT JOIN tbl_process       t2 ON t2.proc_id   = t1.gapst_proc_id
+          LEFT JOIN tbl_organizations t3 ON t3.org_code  = t1.gapst_org_code
+          LEFT JOIN tbl_campus        t4 ON t4.camp_code = t1.gapst_camp_code and t4.camp_org_code = t1.gapst_org_code
+          LEFT JOIN tbl_cities        t5 ON t5.city_code = t1.gapst_city 
+          LEFT JOIN tbl_items         t6 ON t6.item_code = t1.gapst_item_code and t6.[item_purc_code] = $1
         
           WHERE 
-              t1.gapst_proc_id      = @gapstProcId
-          and t1.gapst_proc_code    = COALESCE(@gapstProcCode     , t1.gapst_proc_code)
-          and t1.gapst_org_code     = COALESCE(@gapstOrgCode      , t1.gapst_org_code)
-          and t1.gapst_camp_code    = COALESCE(@gapstCampCode     , t1.gapst_camp_code)
-          and t1.gapst_city         = COALESCE(@gapstCityCode     , t1.gapst_city)
-          and t1.gapst_item_id      = COALESCE(@gapstItemId       , t1.gapst_item_id)
-          and t1.gapst_library_id   = COALESCE(@gapstLibraryId    , t1.gapst_library_id)
-          and t1.gapst_volumen      = COALESCE(@gapstVolumen      , t1.gapst_volumen)
-          and t1.gapst_format_type  = COALESCE(@gapstFormatType   , t1.gapst_format_type)
-          and t1.gapst_item_code    = COALESCE(@gapstItemCode     , t1.gapst_item_code)
+              t1.gapst_proc_id      = $2
+          and t1.gapst_proc_code    = COALESCE($3     , t1.gapst_proc_code)
+          and t1.gapst_org_code     = COALESCE($4      , t1.gapst_org_code)
+          and t1.gapst_camp_code    = COALESCE($5     , t1.gapst_camp_code)
+          and t1.gapst_city         = COALESCE($6     , t1.gapst_city)
+          and t1.gapst_item_id      = COALESCE($7       , t1.gapst_item_id)
+          and t1.gapst_library_id   = COALESCE($8    , t1.gapst_library_id)
+          and t1.gapst_volumen      = COALESCE($9      , t1.gapst_volumen)
+          and t1.gapst_format_type  = COALESCE($10   , t1.gapst_format_type)
+          and t1.gapst_item_code    = COALESCE($11     , t1.gapst_item_code)
         
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-            .request()
-            .input('gapstPurcCode',   sql.VarChar, gapstPurcCode)
-            .input('gapstProcId',     sql.BigInt,  gapstProcId)
-            .input('gapstProcCode',   sql.VarChar, gapstProcCode)
-            .input('gapstOrgCode',    sql.VarChar, gapstOrgCode)
-            .input('gapstCampCode',   sql.VarChar, gapstCampCode)
-            .input('gapstCityCode',   sql.VarChar, gapstCityCode)
-            .input('gapstItemId',     sql.VarChar, gapstItemId)
-            .input('gapstLibraryId',  sql.VarChar, gapstLibraryId)            
-            .input('gapstVolumen',    sql.VarChar, gapstVolumen)
-            .input('gapstFormatType', sql.VarChar, gapstFormatType)
-            .input('gapstItemCode', sql.VarChar, gapstItemCode)
-            .query(sqlGetAllGapSourceStock);
+        const result = await pool.query(sqlGetAllGapSourceStock, [gapstPurcCode, gapstProcId, gapstProcCode, gapstOrgCode, gapstCampCode, gapstCityCode, gapstItemId, gapstLibraryId, gapstVolumen, gapstFormatType, gapstItemCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Fuente de Stock encontradas' : 'No se encontraron Fuente de Stock',
-            gapsSourceStock: result?.recordset
+            message: result?.rows.length > 0 ? 'Fuente de Stock encontradas' : 'No se encontraron Fuente de Stock',
+            gapsSourceStock: result?.rows
         };
 
     } catch (error) {
@@ -124,120 +110,78 @@ const bulkLoadStock = async ({
         , procStandard: null
         , procMsg: header.proc_msg
     }
+    const client = await pool.connect();
     try {
+        await client.query('BEGIN');
 
-
-        const pool = await poolPromise;
-        let table = new sql.Table('tbl_gaps_source_stock');
-        table.create = true;
-
-        //table.columns.add('gapst_id', sql.BigInt, { nullable: false , primary: true});
-        table.columns.add('gapst_proc_id', sql.BigInt, { nullable: false });
-        table.columns.add('gapst_proc_code', sql.VarChar(150), { nullable: false });
-        table.columns.add('gapst_org_code', sql.VarChar(10), { nullable: false });
-        table.columns.add('gapst_camp_code', sql.VarChar(4), { nullable: false });
-        table.columns.add('gapst_camp_library', sql.VarChar(6), { nullable: false });
-        table.columns.add('gapst_camp_sub_library', sql.VarChar(6), { nullable: false });
-        table.columns.add('gapst_city', sql.VarChar(20), { nullable: false });
-        table.columns.add('gapst_item_code', sql.BigInt, { nullable: false });
-        table.columns.add('gapst_library_id', sql.VarChar(10), { nullable: false });
-        table.columns.add('gapst_item_id', sql.VarChar(30), { nullable: false });
-        table.columns.add('gapst_format', sql.VarChar(1), { nullable: false });
-        table.columns.add('gapst_format_type', sql.VarChar(2), { nullable: false });
-        table.columns.add('gapst_volumen', sql.VarChar(1), { nullable: false });
-
-
-        //const pool = await poolPromise;
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
         // Insertar registro en tabla de procesos.
-        
-        const resultProcess    = await ProcessModel.createProcess(headerProcess);
+        const resultProcess = await ProcessModel.createProcess(headerProcess);
         let log = {
-             proclProcId:resultProcess.procId
-            ,proclLog : "Stock Bulk Load Started at: " + new Date()
-        }
+             proclProcId: resultProcess.procId
+            ,proclLog: "Stock Bulk Load Started at: " + new Date()
+        };
         let resultProcessLog = await ProcessLogModel.createProcessLog(log);
 
         if (!resultProcess || resultProcess.type === 'error') {
             log = {
-                proclProcId:resultProcess.procId
-               ,proclLog : "Stock Bulk Load Error:" + resultProcess.message + " at:" + new Date()
-           }
-            resultProcessLog = await ProcessLogModel.createProcessLog(log);            
+                proclProcId: resultProcess.procId
+               ,proclLog: "Stock Bulk Load Error:" + resultProcess.message + " at:" + new Date()
+            };
+            resultProcessLog = await ProcessLogModel.createProcessLog(log);
             throw new HttpException(500, 'Error interno del servidor');
-
         };
 
+        // Bulk Insert de stock usando unnest
+        const sqlBulkInsert = `
+            INSERT INTO tbl_gaps_source_stock (
+                gapst_proc_id, gapst_proc_code, gapst_org_code, gapst_camp_code,
+                gapst_camp_library, gapst_camp_sub_library, gapst_city, gapst_item_code,
+                gapst_library_id, gapst_item_id, gapst_format, gapst_format_type, gapst_volumen
+            )
+            SELECT * FROM unnest(
+                $1::bigint[], $2::text[], $3::text[], $4::text[],
+                $5::text[], $6::text[], $7::text[], $8::bigint[],
+                $9::text[], $10::text[], $11::text[], $12::text[], $13::text[]
+            )
+        `;
+        const cols = {
+            gapst_proc_id:           data.map(() => resultProcess.procId),
+            gapst_proc_code:         data.map(() => headerProcess.procCode),
+            gapst_org_code:          data.map(r => r.gapst_org_code),
+            gapst_camp_code:         data.map(r => r.gapst_camp_code),
+            gapst_camp_library:      data.map(r => r.gapst_camp_library),
+            gapst_camp_sub_library:  data.map(r => r.gapst_camp_sub_library),
+            gapst_city:              data.map(r => r.gapst_city),
+            gapst_item_code:         data.map(r => r.gapst_item_code),
+            gapst_library_id:        data.map(r => r.gapst_library_id),
+            gapst_item_id:           data.map(r => r.gapst_item_id),
+            gapst_format:            data.map(r => r.gapst_format),
+            gapst_format_type:       data.map(r => r.gapst_format_type),
+            gapst_volumen:           data.map(r => r.gapst_volumen),
+        };
+        const result = await client.query(sqlBulkInsert, Object.values(cols));
 
-
-        for (let i = 0; i < data.length; i++) {
-            table.rows.add(
-                // 0,
-                resultProcess.procId,
-                headerProcess.procCode,
-                data[i].gapst_org_code,
-                data[i].gapst_camp_code,
-                data[i].gapst_camp_library,
-                data[i].gapst_camp_sub_library,
-                data[i].gapst_city,
-                data[i].gapst_item_code,
-                data[i].gapst_library_id,
-                data[i].gapst_item_id,
-                data[i].gapst_format,
-                data[i].gapst_format_type,
-                data[i].gapst_volumen
-            );
-        }
-
-        // Bulk Insert de stock
-        const request = pool.request();
-        /*             request.bulk(table, (err, result) => {
-                        if (err) {
-                            console.error(err);                    
-                            transaction.rollback();
-                            return respuesta = {
-                                type: 'error',
-                                status: 400,
-                                message: err.message,
-                            };                    
-                        } else {
-                            console.log('Success!');
-                            transaction.commit();
-                            console.log(result);
-                            //console.log('Transaction committed successfully.');
-                            return respuesta = {
-                                type: 'ok',
-                                status: 200,
-                                message: {status:"Stock Load Success",
-                                          rows:result.rowsAffected,
-                                          procId:resultProcess.procId,
-                                          procCode:headerProcess.procCode},
-                            };                    
-                        }
-                        
-                    })    */
-        const result = await request.bulk(table);
-        transaction.commit();
+        await client.query('COMMIT');
         console.log(result);
         respuesta = {
             type: 'ok',
             status: 200,
-            message: {status:"Stock Load Success",
-                      rows:result.rowsAffected,
-                      procId:resultProcess.procId,
-                      procCode:headerProcess.procCode},
-        };    
-        
-        log = {
-            proclProcId:resultProcess.procId
-           ,proclLog : "Stock Bulk Load Succes:" + JSON.stringify(respuesta.message) + " at:" + new Date()
-       }
-        resultProcessLog = await ProcessLogModel.createProcessLog(log);           
+            message: {
+                status: "Stock Load Success",
+                rows: result.rowCount,
+                procId: resultProcess.procId,
+                procCode: headerProcess.procCode,
+            },
+        };
 
-        //});
+        log = {
+            proclProcId: resultProcess.procId
+           ,proclLog: "Stock Bulk Load Succes:" + JSON.stringify(respuesta.message) + " at:" + new Date()
+        };
+        resultProcessLog = await ProcessLogModel.createProcessLog(log);
+
     } catch (error) {
-        transaction.rollback();
+        await client.query('ROLLBACK');
         respuesta = {
             type: 'error',
             status: 400,
@@ -245,10 +189,12 @@ const bulkLoadStock = async ({
         };
 
         log = {
-            proclProcId:resultProcess.procId
-           ,proclLog : "Stock Bulk Load Error: " + error.message + " at:" + new Date()
-       }
-        resultProcessLog = await ProcessLogModel.createProcessLog(log);            
+            proclProcId: resultProcess ? resultProcess.procId : null
+           ,proclLog: "Stock Bulk Load Error: " + error.message + " at:" + new Date()
+        };
+        resultProcessLog = await ProcessLogModel.createProcessLog(log);
+    } finally {
+        client.release();
     };
 
     return respuesta;
@@ -263,16 +209,12 @@ const deleteGapSourceStock = async (procId) => {
         const sqlDeleteGapSourceStock = `
         DELETE 
           FROM tbl_gaps_source_stock
-         WHERE gapst_proc_id = @procId
+         WHERE gapst_proc_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-            .request()
-            .input('procId', sql.Numeric, procId)
-            .query(sqlDeleteGapSourceStock);
+        const result = await pool.query(sqlDeleteGapSourceStock, [procId]);
 
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

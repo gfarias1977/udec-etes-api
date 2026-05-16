@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const userExists = async ( companyId, email, rut, userName ) => {
@@ -7,42 +7,35 @@ const userExists = async ( companyId, email, rut, userName ) => {
     let respuesta;
     try {
         const sqlEmailExists = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Email ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_user t1
-                   WHERE t1.user_company_id =   @companyId
-                     AND t1.user_email      =   @email
+                   WHERE t1.user_company_id =   $1
+                     AND t1.user_email      =   $2
                   UNION
                   SELECT 'RUT ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_user t1
-                   WHERE t1.user_company_id     =   @companyId
-                     AND t1.user_taxpayer_id    =   @rut
+                   WHERE t1.user_company_id     =   $1
+                     AND t1.user_taxpayer_id    =   $3
                    UNION
                   SELECT 'Nombre de usuario ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_user t1
-                   WHERE t1.user_company_id    =   @companyId
-                     AND t1.user_name          =   @userName
+                   WHERE t1.user_company_id    =   $1
+                     AND t1.user_name          =   $4
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('companyId', sql.Int, companyId )
-                            .input('email',     sql.VarChar, email )
-                            .input('rut',       sql.VarChar, rut )
-                            .input('userName',  sql.VarChar, userName )
-                            .query(sqlEmailExists);
+        const result = await pool.query(sqlEmailExists, [companyId, email, rut, userName]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -62,35 +55,31 @@ const findAllUsers = async( companyId ) => {
     let respuesta;
     try {
         const sqlGetAllUsers = `
-               SELECT t1.USER_ID                                                                                AS  userId,
-                      t1.USER_TAXPAYER_ID                                                                       AS  userRut,
-                      t1.USER_NAME                                                                              AS  userName,
-                      dbo.INITCAP( t1.user_first_name + ' ' + t1.user_middle_name + ' ' + t1.user_last_name )   AS  userDescription,
-                      t1.USER_EMAIL                                                                             AS  userEmail,
-                      TRIM( t1.USER_STATUS )                                                                    AS  userStatus,
-                      t1.user_first_name                                                                        AS  userFirstName,
-                      t1.user_middle_name                                                                       AS  userMiddleName,
-                      t1.user_last_name                                                                         AS  userLastName,
-                      t1.user_cellphone                                                                         AS  userCellphone,
-                      t1.user_gender                                                                            AS  userGender,
-                      t1.user_address                                                                           AS  userAddress,
-                      t1.user_password                                                                          AS  userPassword 
+               SELECT t1.USER_ID                                                                                AS "userId",
+                      t1.USER_TAXPAYER_ID                                                                       AS "userRut",
+                      t1.USER_NAME                                                                              AS "userName",
+                      INITCAP( t1.user_first_name || ' ' || t1.user_middle_name || ' ' || t1.user_last_name )   AS "userDescription",
+                      t1.USER_EMAIL                                                                             AS "userEmail",
+                      TRIM( t1.USER_STATUS )                                                                    AS "userStatus",
+                      t1.user_first_name                                                                        AS "userFirstName",
+                      t1.user_middle_name                                                                       AS "userMiddleName",
+                      t1.user_last_name                                                                         AS "userLastName",
+                      t1.user_cellphone                                                                         AS "userCellphone",
+                      t1.user_gender                                                                            AS "userGender",
+                      t1.user_address                                                                           AS "userAddress",
+                      t1.user_password                                                                          AS "userPassword" 
                  FROM tbl_user t1
-                WHERE t1.user_company_id        =   @companyId
+                WHERE t1.user_company_id        =   $1
              ORDER BY t1.user_id
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('companyId', sql.Int, companyId )
-                            .query(sqlGetAllUsers);
+        const result = await pool.query(sqlGetAllUsers, [companyId]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios encontrados' : 'No se encontraron usuarios',
-            users: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios encontrados' : 'No se encontraron usuarios',
+            users: result?.rows
         };
 
     } catch (error) {
@@ -145,46 +134,28 @@ const createUser = async ( {
             [user_taxpayer_id],
             [user_status]
         )VALUES(
-            @userCompay,
-            @userFirstname,
-            @userMiddlename,
-            @userLastname,
-            @userSurname,
-            @userAddress,
-            @userEmail,
-            @userPersonalEmail,
-            @userTelephone,
-            @userCellphone,
-            DBO.fncGetDate(),
-            @userName,
-            @userGender,
-            @userPassword,
-            @userTaxPayer,
-            @userStatus
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            NOW(),
+            $11,
+            $12,
+            $13,
+            $14,
+            $15
         );
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('userCompay',        sql.Int,      userCompay )
-                            .input('userFirstname',     sql.VarChar,  userFirstname )
-                            .input('userMiddlename',    sql.VarChar,  userMiddlename )
-                            .input('userLastname',      sql.VarChar,  userLastname )
-                            .input('userSurname',       sql.VarChar,  userSurname )
-                            .input('userAddress',       sql.VarChar,  userAddress )
-                            .input('userEmail',         sql.VarChar,  userEmail )
-                            .input('userPersonalEmail', sql.VarChar,  userPersonalEmail )
-                            .input('userTelephone',     sql.VarChar,  userTelephone )
-                            .input('userCellphone',     sql.VarChar,  userCellphone )
-                            .input('userName',          sql.VarChar,  userName )
-                            .input('userGender',        sql.NChar(1), userGender )
-                            .input('userPassword',      sql.VarChar,  userPassword )
-                            .input('userTaxPayer',      sql.VarChar,  userTaxPayer )
-                            .input('userStatus',        sql.VarChar,  userStatus )
-                            .query(sqlCreateUser);
+        const result = await pool.query(sqlCreateUser, [userCompay, userFirstname, userMiddlename, userLastname, userSurname, userAddress, userEmail, userPersonalEmail, userTelephone, userCellphone, userName, userGender, userPassword, userTaxPayer, userStatus]);
 
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -210,26 +181,21 @@ const findUserByID = async( userID, companyId ) => {
     try {
         
         const sqlGetUserByID = `
-           SELECT t1.USER_ID                                                                                AS  userId,
-                  t1.USER_TAXPAYER_ID                                                                       AS  userRut,
-                  t1.USER_NAME                                                                              AS  userName,
-                  dbo.INITCAP( t1.user_first_name + ' ' + t1.user_middle_name + ' ' + t1.user_last_name )   AS  userDescription,
-                  t1.USER_EMAIL                                                                             AS  userEmail,
-                  TRIM( t1.USER_STATUS )                                                                    AS  userStatus
+           SELECT t1.USER_ID                                                                                AS "userId",
+                  t1.USER_TAXPAYER_ID                                                                       AS "userRut",
+                  t1.USER_NAME                                                                              AS "userName",
+                  INITCAP( t1.user_first_name || ' ' || t1.user_middle_name || ' ' || t1.user_last_name )   AS "userDescription",
+                  t1.USER_EMAIL                                                                             AS "userEmail",
+                  TRIM( t1.USER_STATUS )                                                                    AS "userStatus"
              FROM tbl_user t1
-            WHERE t1.user_id                =   @userID
-              AND t1.user_company_id        =   @companyId
+            WHERE t1.user_id                =   $1
+              AND t1.user_company_id        =   $2
          ORDER BY t1.user_id
     `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('userID',    sql.VarChar, userID )
-                            .input('companyId', sql.VarChar, companyId )
-                            .query(sqlGetUserByID);
+        const result = await pool.query(sqlGetUserByID, [userID, companyId]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -244,18 +210,13 @@ const deleteUser = async ( userId, companyId ) => {
         const sqlDeleteUser = `
         DELETE 
           FROM tbl_user
-         WHERE user_id          =   @userId
-           AND user_company_id  =   @companyId
+         WHERE user_id          =   $1
+           AND user_company_id  =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('userId',    sql.VarChar, userId )
-                            .input('companyId', sql.VarChar, companyId )
-                            .query(sqlDeleteUser);
+        const result = await pool.query(sqlDeleteUser, [userId, companyId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {
@@ -273,18 +234,13 @@ const updateUser = async( params, userId, companyId ) => {
         const sqlUpdateUser = `
         UPDATE tbl_user
            SET ${columnSet}
-         WHERE user_id          =   @userId
-           AND user_company_id  =   @companyId
+         WHERE user_id          =   $1
+           AND user_company_id  =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('userId',    sql.VarChar, userId )
-                            .input('companyId', sql.VarChar, companyId )
-                            .query(sqlUpdateUser);
+        const result = await pool.query(sqlUpdateUser, [userId, companyId]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -297,25 +253,20 @@ const findUserByToken = async( userId, company ) => {
     try {
         
         const sqlGetUserByToken = `
-        SELECT dbo.INITCAP( user_first_name + ' ' + user_middle_name + ' ' + user_last_name )   AS  userDescription,
+        SELECT INITCAP( user_first_name || ' ' || user_middle_name || ' ' || user_last_name )   AS "userDescription",
                user_email,
                user_creation_date,
                user_name,
-               TRIM( user_status )                                                              AS  userStatus
-          FROM dbo.tbl_user t1
-         WHERE t1.user_company_id   =   @company
-           AND t1.user_id           =   @userId
+               TRIM( user_status )                                                              AS "userStatus"
+          FROM tbl_user t1
+         WHERE t1.user_company_id   =   $1
+           AND t1.user_id           =   $2
            AND t1.user_status       =   'S'
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('company', sql.VarChar, company )
-                            .input('userId',  sql.VarChar, userId )
-                            .query(sqlGetUserByToken);
+        const result = await pool.query(sqlGetUserByToken, [company, userId]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };

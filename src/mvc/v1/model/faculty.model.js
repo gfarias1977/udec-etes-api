@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const facultyExists = async ( facuCode ) => {
@@ -7,26 +7,22 @@ const facultyExists = async ( facuCode ) => {
     let respuesta;
     try {
         const sqlFacultyExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Facultad ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_faculty t1
-                    WHERE t1.facu_code      =   @facuCode
+                    WHERE t1.facu_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('facuCode',  sql.VarChar, facuCode )
-                            .query(sqlFacultyExists);
+        const result = await pool.query(sqlFacultyExists, [facuCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -52,20 +48,17 @@ const getAllFaculties = async() => {
                 ,t1.facu_name
                 ,t1.facu_creation_date
                 ,t1.facu_status
-            FROM dbo.tbl_faculty t1
+            FROM tbl_faculty t1
             order by t1.facu_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllFaculties);
+        const result = await pool.query(sqlGetAllFaculties);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Facultades encontrados' : 'No se encontraron Facultades',
-            faculties: result?.recordset
+            message: result?.rows.length > 0 ? 'Facultades encontrados' : 'No se encontraron Facultades',
+            faculties: result?.rows
         };
 
     } catch (error) {
@@ -92,18 +85,14 @@ const getFacultyById = async( facuCode) => {
                 ,t1.facu_name
                 ,t1.facu_creation_date
                 ,t1.facu_status
-            FROM dbo.tbl_faculty t1
-            WHERE t1.facu_code = @facuCode            
+            FROM tbl_faculty t1
+            WHERE t1.facu_code = $1            
             order by t1.facu_code 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('facuCode', sql.VarChar, facuCode )                            
-                            .query(sqlGetFacultyByID);
+        const result = await pool.query(sqlGetFacultyByID, [facuCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -122,24 +111,20 @@ const getAllFacultyByName = async(facuName) => {
             ,t1.facu_name
             ,t1.facu_creation_date
             ,t1.facu_status
-        FROM dbo.tbl_faculty t1
-        WHERE UPPER(t1.facu_name)  LIKE UPPER(CONCAT('%',@facuName,'%'))
+        FROM tbl_faculty t1
+        WHERE UPPER(t1.facu_name)  LIKE UPPER(CONCAT('%',$1,'%'))
            AND t1.facu_status = 'S'         
         order by t1.facu_code 
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('facuName', sql.VarChar, facuName )
-                            .query(qryFindFaculties);
+        const result = await pool.query(qryFindFaculties, [facuName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Facultades encontradas' : 'No se encontraron Facultades',
-            faculties: result?.recordset
+            message: result?.rows.length > 0 ? 'Facultades encontradas' : 'No se encontraron Facultades',
+            faculties: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -163,30 +148,23 @@ const createFaculty = async ( {
     try {
         
         const sqlCreateFaculty = `
-                INSERT INTO dbo.tbl_faculty
+                INSERT INTO tbl_faculty
                         (facu_code
                         ,facu_org_code
                         ,facu_name
                         ,facu_creation_date
                         ,facu_status)
                 VALUES
-                        (@facuCode
-                        ,@facuOrgCode
-                        ,@facuName
-                        ,DBO.fncGetDate()
-                        ,@facuStatus)
+                        ($1
+                        ,$2
+                        ,$3
+                        ,NOW()
+                        ,$4)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('facuCode',         sql.VarChar,  facuCode )             
-                            .input('facuOrgCode',      sql.VarChar,  facuOrgCode )
-                            .input('facuName',         sql.VarChar,  facuName )
-                            .input('facuStatus',       sql.VarChar,  facuStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateFaculty);
+        const result = await pool.query(sqlCreateFaculty, [facuCode, facuOrgCode, facuName, facuStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -215,16 +193,12 @@ const updateFaculty = async( params, facuCode ) => {
         const sqlUpdateFaculty= `
         UPDATE tbl_faculty
            SET ${columnSet}
-         WHERE facu_code = @facuCode
+         WHERE facu_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('facuCode',     sql.VarChar, facuCode )
-                            .query(sqlUpdateFaculty);
+        const result = await pool.query(sqlUpdateFaculty, [facuCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -239,16 +213,12 @@ const deleteFaculty = async ( facuCode ) => {
         const sqlDeleteFaculty = `
         DELETE 
           FROM tbl_faculty
-         WHERE facu_code = @facuCode
+         WHERE facu_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('facuCode',     sql.VarChar, facuCode )
-                            .query(sqlDeleteFaculty);
+        const result = await pool.query(sqlDeleteFaculty, [facuCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

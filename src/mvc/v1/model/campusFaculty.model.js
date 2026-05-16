@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const campusFacultyExists = async ( cfacFacuCode, cfacCampCode, cfacOrgCode  ) => {
@@ -7,30 +7,24 @@ const campusFacultyExists = async ( cfacFacuCode, cfacCampCode, cfacOrgCode  ) =
     let respuesta;
     try {
         const sqlCampusFacultyExists = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Sede - Facultad ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_campus_faculty t1
-                   WHERE t1.cfac_facu_code      =   @cfacFacuCode
-                     AND t1.cfac_camp_code      =   @cfacCampCode
-                     AND t1.cfac_org_code       =   @cfacOrgCode
+                   WHERE t1.cfac_facu_code      =   $1
+                     AND t1.cfac_camp_code      =   $2
+                     AND t1.cfac_org_code       =   $3
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cfacFacuCode',  sql.VarChar, cfacFacuCode )
-                            .input('cfacCampCode',  sql.VarChar, cfacCampCode )
-                            .input('cfacOrgCode',   sql.VarChar, cfacOrgCode )
-                            .query(sqlCampusFacultyExists);
+        const result = await pool.query(sqlCampusFacultyExists, [cfacFacuCode, cfacCampCode, cfacOrgCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -60,7 +54,7 @@ const getAllCampusFaculty = async() => {
                 ,t1.cfac_org_code
                 ,t1.cfac_creation_date
                 ,t1.cfac_status
-            FROM dbo.tbl_campus_faculty t1, dbo.tbl_campus t2, dbo.tbl_faculty t3, dbo.tbl_organizations t4
+            FROM tbl_campus_faculty t1, tbl_campus t2, tbl_faculty t3, tbl_organizations t4
                 WHERE t1.cfac_facu_code = t3.facu_code
                 AND t1.cfac_camp_code = t2.camp_code
                 AND t1.cfac_org_code =  t4.org_code
@@ -69,16 +63,13 @@ const getAllCampusFaculty = async() => {
             order by t1.cfac_facu_code,t1.cfac_camp_code,t1.cfac_org_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllCampusFaculty);
+        const result = await pool.query(sqlGetAllCampusFaculty);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Sede-Facultad encontradas' : 'No se encontraron Sede - Facultad',
-            campusFaculty: result?.recordset
+            message: result?.rows.length > 0 ? 'Sede-Facultad encontradas' : 'No se encontraron Sede - Facultad',
+            campusFaculty: result?.rows
         };
 
     } catch (error) {
@@ -109,27 +100,21 @@ const getCampusFacultyById = async( cfacFacuCode, cfacCampCode, cfacOrgCode ) =>
                     ,t1.cfac_org_code
                     ,t1.cfac_creation_date
                     ,t1.cfac_status
-                FROM dbo.tbl_campus_faculty t1, dbo.tbl_campus t2, dbo.tbl_faculty t3, dbo.tbl_organizations t4
+                FROM tbl_campus_faculty t1, tbl_campus t2, tbl_faculty t3, tbl_organizations t4
                     WHERE t1.cfac_facu_code = t3.facu_code
                     AND t1.cfac_camp_code = t2.camp_code
                     AND t1.cfac_org_code =  t4.org_code
                     AND t3.facu_org_code = t4.org_code
                     AND t2.camp_org_code = t4.org_code
-                    AND t1.cfac_facu_code = coalesce(@cfacFacuCode,t1.cfac_facu_code)
-                    AND t1.cfac_camp_code = coalesce(@cfacCampCode,t1.cfac_camp_code)
-                    AND t1.cfac_org_code = coalesce(@cfacOrgCode,t1.cfac_org_code)
+                    AND t1.cfac_facu_code = coalesce($1,t1.cfac_facu_code)
+                    AND t1.cfac_camp_code = coalesce($2,t1.cfac_camp_code)
+                    AND t1.cfac_org_code = coalesce($3,t1.cfac_org_code)
                 order by t1.cfac_facu_code,t1.cfac_camp_code,t1.cfac_org_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cfacFacuCode', sql.VarChar, cfacFacuCode )                            
-                            .input('cfacCampCode', sql.VarChar, cfacCampCode )                            
-                            .input('cfacOrgCode',  sql.VarChar, cfacOrgCode )                            
-                            .query(sqlGetCampusFacultyByID);
+        const result = await pool.query(sqlGetCampusFacultyByID, [cfacFacuCode, cfacCampCode, cfacOrgCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -149,30 +134,23 @@ const createCampusFaculty = async ( {
     try {
         
         const sqlCreateCampusFaculty = `
-                INSERT INTO dbo.tbl_campus_faculty
+                INSERT INTO tbl_campus_faculty
                         (cfac_facu_code
                         ,cfac_camp_code
                         ,cfac_org_code
                         ,cfac_creation_date
                         ,cfac_status)
                 VALUES
-                        (@cfacFacuCode
-                        ,@cfacCampCode
-                        ,@cfacOrgCode
-                        ,DBO.fncGetDate()
-                        ,@cfacStatus)
+                        ($1
+                        ,$2
+                        ,$3
+                        ,NOW()
+                        ,$4)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cfacFacuCode',   sql.VarChar,  cfacFacuCode )             
-                            .input('cfacCampCode',   sql.VarChar,  cfacCampCode )
-                            .input('cfacOrgCode',   sql.VarChar,  cfacOrgCode )
-                            .input('cfacStatus',     sql.VarChar,  cfacStatus )
-                            .query(sqlCreateCampusFaculty);
+        const result = await pool.query(sqlCreateCampusFaculty, [cfacFacuCode, cfacCampCode, cfacOrgCode, cfacStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -201,20 +179,14 @@ const updateCampusFaculty = async( params, cfacFacuCode, cfacCampCode, cfacOrgCo
         const sqlUpdateCampusFaculty= `
         UPDATE tbl_campus_faculty
            SET ${columnSet}
-        WHERE cfac_facu_code = @cfacFacuCode
-          AND cfac_camp_code = @cfacCampCode
-          AND cfac_org_code  = @cfacOrgCode
+        WHERE cfac_facu_code = $1
+          AND cfac_camp_code = $2
+          AND cfac_org_code  = $3
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cfacFacuCode',  sql.VarChar, cfacFacuCode )
-                            .input('cfacCampCode',  sql.VarChar, cfacCampCode )
-                            .input('cfacOrgCode',   sql.VarChar, cfacOrgCode )                            
-                            .query(sqlUpdateCampusFaculty);
+        const result = await pool.query(sqlUpdateCampusFaculty, [cfacFacuCode, cfacCampCode, cfacOrgCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -229,20 +201,14 @@ const deleteCampusFaculty = async ( cfacFacuCode, cfacCampCode, cfacOrgCode ) =>
         const sqlDeleteCampusFaculty = `
         DELETE 
           FROM tbl_campus_faculty
-         WHERE cfac_facu_code = @cfacFacuCode
-           AND cfac_camp_code = @cfacCampCode
-           AND cfac_org_code  = @cfacOrgCode
+         WHERE cfac_facu_code = $1
+           AND cfac_camp_code = $2
+           AND cfac_org_code  = $3
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cfacFacuCode',   sql.VarChar, cfacFacuCode )
-                            .input('cfacCampCode',   sql.VarChar, cfacCampCode )
-                            .input('cfacOrgCode',    sql.VarChar, cfacOrgCode )
-                            .query(sqlDeleteCampusFaculty);
+        const result = await pool.query(sqlDeleteCampusFaculty, [cfacFacuCode, cfacCampCode, cfacOrgCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

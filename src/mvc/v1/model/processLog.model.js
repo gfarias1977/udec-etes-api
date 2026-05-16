@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 
@@ -9,24 +9,20 @@ const getAllProcessLog = async(procId) => {
     try {
         const sqlGetAllProcessLog = `
         SELECT SELECT ROW_NUMBER() OVER(ORDER BY  t1.procl_id ASC) AS id
-            ,t1.procl_id            AS  proclId           
-            ,t1.procl_proc_id       AS  proclProcId      
-            ,t1.procl_log           AS  proclLog          
-            ,t1.procl_creation_date AS  proclCreationDate
+            ,t1.procl_id            AS "proclId"           
+            ,t1.procl_proc_id       AS "proclProcId"      
+            ,t1.procl_log           AS "proclLog"          
+            ,t1.procl_creation_date AS "proclCreationDate"
         FROM t1.dbo].[tbl_process_logs  t1
         WHERE t1.procl_proc_id = @proclProcId`;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purclProcId',   sql.VarChar,purclProcId) 
-                            .query(sqlGetAllProcessLog);
+        const result = await pool.query(sqlGetAllProcessLog, [purclProcId]);
 
         respuesta = {
             type: 'ok',   
             status: 200,
-            message: result?.recordset.length > 0 ? 'Log Procesos encontradas' : 'No se encontraron Log Procesos',
-            processes: result?.recordset
+            message: result?.rows.length > 0 ? 'Log Procesos encontradas' : 'No se encontraron Log Procesos',
+            processes: result?.rows
         };
 
     } catch (error) {
@@ -50,26 +46,21 @@ const createProcessLog = async ( {
     try {
         
         const sqlCreateProcessLog = `
-        INSERT INTO dbo.tbl_process_logs
+        INSERT INTO tbl_process_logs
                 (procl_proc_id
                 ,procl_log
                 ,procl_creation_date
                 )
         VALUES
-                (@proclProcId
-                ,@proclLog
-                ,DBO.fncGetDate()
+                ($1
+                ,$2
+                ,NOW()
                 )`;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('proclProcId',              sql.Numeric,proclProcId)         
-                            .input('proclLog',                 sql.VarChar,proclLog)       
-                            .query(sqlCreateProcessLog);
+        const result = await pool.query(sqlCreateProcessLog, [proclProcId, proclLog]);
         
-        const affectedRows = result.rowsAffected[0];
-        //const proclId = result.recordset[0].procl_id;
+        const affectedRows = result.rowCount;
+        //const proclId = result.rows[0].procl_id;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -97,16 +88,12 @@ const deleteProcessLog = async ( proclId ) => {
         const sqlDeleteProcess = `
         DELETE 
           FROM tbl_process_logs
-         WHERE procl_id = @proclId
+         WHERE procl_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('proclId',     sql.Numeric, proclId )
-                            .query(sqlDeleteProcess);
+        const result = await pool.query(sqlDeleteProcess, [proclId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

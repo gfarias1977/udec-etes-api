@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const itemCategoryExist = async ( itmcName, itmcPurcCode ) => {
@@ -7,28 +7,23 @@ const itemCategoryExist = async ( itmcName, itmcPurcCode ) => {
     let respuesta;
     try {
         const sqlItemCategoryExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Categorias de bienes ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_item_categories t1
-                    WHERE t1.itmc_Name         =   @itmcName
-                    and t1.itmc_purc_code      =   @itmcPurcCode
+                    WHERE t1.itmc_Name         =   $1
+                    and t1.itmc_purc_code      =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcName',      sql.VarChar, itmcName )
-                            .input('itmcPurcCode',  sql.VarChar, itmcPurcCode )
-                            .query(sqlItemCategoryExist);
+        const result = await pool.query(sqlItemCategoryExist, [itmcName, itmcPurcCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -49,29 +44,26 @@ const getAllItemCategories = async() => {
     try {
         const sqlGetAllItemCategories = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.itmc_code ASC) AS id   
-                ,t1.itmc_code           AS itmcCode         
-                ,t1.itmc_purc_code      AS itmcPurcCode    
-                ,t2.purc_name           AS purcName         
-                ,t1.itmc_name           AS itmcName         
-                ,t1.itmc_description    AS itmcDescription  
-                ,t1.itmc_order          AS itmcOrder        
-                ,t1.itmc_parent_code    AS itmcParentCode  
-                ,t1.itmc_creation_date  AS itmcCreationDate
-                ,t1.itmc_status         AS itmcStatus  
-            FROM dbo.tbl_item_categories t1
+                ,t1.itmc_code           AS "itmcCode"         
+                ,t1.itmc_purc_code      AS "itmcPurcCode"    
+                ,t2.purc_name           AS "purcName"         
+                ,t1.itmc_name           AS "itmcName"         
+                ,t1.itmc_description    AS "itmcDescription"  
+                ,t1.itmc_order          AS "itmcOrder"        
+                ,t1.itmc_parent_code    AS "itmcParentCode"  
+                ,t1.itmc_creation_date  AS "itmcCreationDate"
+                ,t1.itmc_status         AS "itmcStatus"  
+            FROM tbl_item_categories t1
             order by t1.itmc_name asc
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllItemCategories);
+        const result = await pool.query(sqlGetAllItemCategories);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Categoria de Bienes encontrados' : 'No se encontraron Categorias de Bienes',
-            itemCategories: result?.recordset
+            message: result?.rows.length > 0 ? 'Categoria de Bienes encontrados' : 'No se encontraron Categorias de Bienes',
+            itemCategories: result?.rows
         };
 
     } catch (error) {
@@ -93,29 +85,24 @@ const getItemCategoryById = async( itmcCode, itmcPurcCode) => {
         
         const sqlGetItemCategoryByID = `
                 SELECT ROW_NUMBER() OVER(ORDER BY  t1.itmc_code ASC) AS id   
-                    ,t1.itmc_code           AS itmcCode         
-                    ,t1.itmc_purc_code      AS itmcPurcCode    
-                    ,t2.purc_name           AS purcName         
-                    ,t1.itmc_name           AS itmcName         
-                    ,t1.itmc_description    AS itmcDescription  
-                    ,t1.itmc_order          AS itmcOrder        
-                    ,t1.itmc_parent_code    AS itmcParentCode  
-                    ,t1.itmc_creation_date  AS itmcCreationDate
-                    ,t1.itmc_status         AS itmcStatus  
-                FROM dbo.tbl_item_categories t1
-                WHERE t1.itmc_code = @itmcCode
-                and  t1.itmc_purc_code = @itmcPurcCode
+                    ,t1.itmc_code           AS "itmcCode"         
+                    ,t1.itmc_purc_code      AS "itmcPurcCode"    
+                    ,t2.purc_name           AS "purcName"         
+                    ,t1.itmc_name           AS "itmcName"         
+                    ,t1.itmc_description    AS "itmcDescription"  
+                    ,t1.itmc_order          AS "itmcOrder"        
+                    ,t1.itmc_parent_code    AS "itmcParentCode"  
+                    ,t1.itmc_creation_date  AS "itmcCreationDate"
+                    ,t1.itmc_status         AS "itmcStatus"  
+                FROM tbl_item_categories t1
+                WHERE t1.itmc_code = $1
+                and  t1.itmc_purc_code = $2
                 order by t1.itmc_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcCode',      sql.VarChar, itmcCode )                            
-                            .input('itmcPurcCode',  sql.VarChar, itmcPurcCode )
-                            .query(sqlGetItemCategoryByID);
+        const result = await pool.query(sqlGetItemCategoryByID, [itmcCode, itmcPurcCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -129,33 +116,29 @@ const getAllItemCategoriesByName = async(itmcName) => {
     const qryFindItemCategories = 
     `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.itmc_code ASC) AS id   
-                ,t1.itmc_code           AS itmcCode         
-                ,t1.itmc_purc_code      AS itmcPurcCode    
-                ,t2.purc_name           AS purcName         
-                ,t1.itmc_name           AS itmcName         
-                ,t1.itmc_description    AS itmcDescription  
-                ,t1.itmc_order          AS itmcOrder        
-                ,t1.itmc_parent_code    AS itmcParentCode  
-                ,t1.itmc_creation_date  AS itmcCreationDate
-                ,t1.itmc_status         AS itmcStatus  
-            FROM dbo.tbl_item_categories t1
-            WHERE UPPER(t1.itmc_name)  LIKE UPPER(CONCAT('%',@itmcName,'%'))
+                ,t1.itmc_code           AS "itmcCode"         
+                ,t1.itmc_purc_code      AS "itmcPurcCode"    
+                ,t2.purc_name           AS "purcName"         
+                ,t1.itmc_name           AS "itmcName"         
+                ,t1.itmc_description    AS "itmcDescription"  
+                ,t1.itmc_order          AS "itmcOrder"        
+                ,t1.itmc_parent_code    AS "itmcParentCode"  
+                ,t1.itmc_creation_date  AS "itmcCreationDate"
+                ,t1.itmc_status         AS "itmcStatus"  
+            FROM tbl_item_categories t1
+            WHERE UPPER(t1.itmc_name)  LIKE UPPER(CONCAT('%',$1,'%'))
                     AND t1.itmc_status = 'S' 
             order by t1.itmc_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcName', sql.VarChar, itmcName )
-                            .query(qryFindItemCategories);
+        const result = await pool.query(qryFindItemCategories, [itmcName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Categorias de Bienes encontradas' : 'No se encontraron Categorias de Bienes',
-            itemCategories: result?.recordset
+            message: result?.rows.length > 0 ? 'Categorias de Bienes encontradas' : 'No se encontraron Categorias de Bienes',
+            itemCategories: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -174,34 +157,30 @@ const getAllItemCategoriesByPurcCode = async(itmcPurcCode) => {
     try {
         const sqlGetAllItemCategories = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.itmc_code ASC) AS id   
-                ,t1.itmc_code           AS itmcCode         
-                ,t1.itmc_purc_code      AS itmcPurcCode    
-                ,t2.purc_name           AS purcName         
-                ,t1.itmc_name           AS itmcName         
-                ,t1.itmc_description    AS itmcDescription  
-                ,t1.itmc_order          AS itmcOrder        
-                ,t1.itmc_parent_code    AS itmcParentCode  
-                ,t1.itmc_creation_date  AS itmcCreationDate
-                ,t1.itmc_status         AS itmcStatus  
-            FROM dbo.tbl_item_categories t1
+                ,t1.itmc_code           AS "itmcCode"         
+                ,t1.itmc_purc_code      AS "itmcPurcCode"    
+                ,t2.purc_name           AS "purcName"         
+                ,t1.itmc_name           AS "itmcName"         
+                ,t1.itmc_description    AS "itmcDescription"  
+                ,t1.itmc_order          AS "itmcOrder"        
+                ,t1.itmc_parent_code    AS "itmcParentCode"  
+                ,t1.itmc_creation_date  AS "itmcCreationDate"
+                ,t1.itmc_status         AS "itmcStatus"  
+            FROM tbl_item_categories t1
             LEFT JOIN tbl_purchase_areas t2 ON t2.purc_code = t1.itmc_purc_code
             WHERE t1.itmc_parent_code = 0 
             and t1.itmc_status = 'S'
-            and t1.itmc_purc_code = @itmcPurcCode
+            and t1.itmc_purc_code = $1
             order by t1.itmc_name asc
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcPurcCode', sql.VarChar, itmcPurcCode )
-                            .query(sqlGetAllItemCategories);
+        const result = await pool.query(sqlGetAllItemCategories, [itmcPurcCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Categoria de Bienes encontrados' : 'No se encontraron Categorias de Bienes',
-            itemCategories: result?.recordset
+            message: result?.rows.length > 0 ? 'Categoria de Bienes encontrados' : 'No se encontraron Categorias de Bienes',
+            itemCategories: result?.rows
         };
 
     } catch (error) {
@@ -222,35 +201,30 @@ const getAllItemCategoriesByParentCode = async(itmcPurcCode, itmcParentCode) => 
     try {
         const sqlGetAllItemCategories = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.itmc_code ASC) AS id   
-                    ,t1.itmc_code           AS itmcCode         
-                    ,t1.itmc_purc_code      AS itmcPurcCode    
-                    ,t2.purc_name           AS purcName         
-                    ,t1.itmc_name           AS itmcName         
-                    ,t1.itmc_description    AS itmcDescription  
-                    ,t1.itmc_order          AS itmcOrder        
-                    ,t1.itmc_parent_code    AS itmcParentCode  
-                    ,t1.itmc_creation_date  AS itmcCreationDate
-                    ,t1.itmc_status         AS itmcStatus  
-            FROM dbo.tbl_item_categories t1
+                    ,t1.itmc_code           AS "itmcCode"         
+                    ,t1.itmc_purc_code      AS "itmcPurcCode"    
+                    ,t2.purc_name           AS "purcName"         
+                    ,t1.itmc_name           AS "itmcName"         
+                    ,t1.itmc_description    AS "itmcDescription"  
+                    ,t1.itmc_order          AS "itmcOrder"        
+                    ,t1.itmc_parent_code    AS "itmcParentCode"  
+                    ,t1.itmc_creation_date  AS "itmcCreationDate"
+                    ,t1.itmc_status         AS "itmcStatus"  
+            FROM tbl_item_categories t1
             LEFT JOIN tbl_purchase_areas t2 ON t2.purc_code = t1.itmc_purc_code
             WHERE t1.itmc_status = 'S'
-              and t1.itmc_purc_code   = @itmcPurcCode
+              and t1.itmc_purc_code   = $1
               and t1.itmc_parent_code = @itmcParentCode
             order by t1.itmc_name asc
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcPurcCode', sql.VarChar, itmcPurcCode )
-                            .input('itmcParentCode', sql.Int, itmcParentCode )
-                            .query(sqlGetAllItemCategories);
+        const result = await pool.query(sqlGetAllItemCategories, [itmcPurcCode, itmcParentCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Categoria de Bienes encontrados' : 'No se encontraron Categorias de Bienes',
-            itemCategories: result?.recordset
+            message: result?.rows.length > 0 ? 'Categoria de Bienes encontrados' : 'No se encontraron Categorias de Bienes',
+            itemCategories: result?.rows
         };
 
     } catch (error) {
@@ -278,7 +252,7 @@ const createItemCategory = async ( {
     try {
         
         const sqlCreateItemCategory = `
-            INSERT INTO dbo.tbl_item_categories
+            INSERT INTO tbl_item_categories
                     (
                      itmc_purc_code
                     ,itmc_name
@@ -288,27 +262,18 @@ const createItemCategory = async ( {
                     ,itmc_creation_date
                     ,itmc_status)
             VALUES
-                    (@itmcPurcCode
-                    ,@itmcName
+                    ($1
+                    ,$2
                     ,@itmcdescription
-                    ,@itmcOrder
-                    ,@itmcParentCode
-                    ,DBO.fncGetDate()
-                    ,@itmcStatus)
+                    ,$4
+                    ,$5
+                    ,NOW()
+                    ,$6)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcPurcCode',      sql.VarChar,  itmcPurcCode )
-                            .input('itmcName',          sql.VarChar,  itmcName )
-                            .input('itmcDescription',   sql.VarChar,  itmcDescription )
-                            .input('itmcOrder',         sql.Int,      itmcOrder )
-                            .input('itmcParentCode',    sql.VarChar,  itmcParentCode )                            
-                            .input('itmcStatus',        sql.VarChar,  itmcStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateItemCategory);
+        const result = await pool.query(sqlCreateItemCategory, [itmcPurcCode, itmcName, itmcDescription, itmcOrder, itmcParentCode, itmcStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -337,18 +302,13 @@ const updateItemCategory = async( params, itmcCode,itmcPurcCode ) => {
         const sqlUpdateItemCategory= `
         UPDATE tbl_item_categories
            SET ${columnSet}
-         WHERE itmc_code = @itmcCode
-         and itmc_purc_code = @itmcPurcCode
+         WHERE itmc_code = $1
+         and itmc_purc_code = $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcCode',         sql.VarChar, itmcCode )
-                            .input('itmcPurcCode',     sql.VarChar, itmcPurcCode )
-                            .query(sqlUpdateItemCategory);
+        const result = await pool.query(sqlUpdateItemCategory, [itmcCode, itmcPurcCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -363,18 +323,13 @@ const deleteItemCategory = async ( itmcCode, itmcPurcCode ) => {
         const sqlDeleteItemCategory = `
         DELETE 
           FROM tbl_item_categories
-        WHERE itmc_code = @itmcCode
-          and itmc_purc_code = @itmcPurcCode
+        WHERE itmc_code = $1
+          and itmc_purc_code = $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmcCode',     sql.VarChar, itmcCode )
-                            .input('itmcPurcCode',     sql.VarChar, itmcPurcCode )
-                            .query(sqlDeleteItemCategory);
+        const result = await pool.query(sqlDeleteItemCategory, [itmcCode, itmcPurcCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

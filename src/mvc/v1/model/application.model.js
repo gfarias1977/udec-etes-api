@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const applicationExists = async ( appCode ) => {
@@ -7,26 +7,22 @@ const applicationExists = async ( appCode ) => {
     let respuesta;
     try {
         const sqlApplicationExists = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Aplicacion ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_applications t1
-                   WHERE t1.app_code      =   @appCode
+                   WHERE t1.app_code      =   $1
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('appCode',  sql.VarChar, appCode )
-                            .query(sqlApplicationExists);
+        const result = await pool.query(sqlApplicationExists, [appCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -59,20 +55,17 @@ const getAllApplications = async() => {
                 ,t1.app_component
                 ,t1.app_alt
                 ,t1.app_status
-            FROM dbo.tbl_applications t1
+            FROM tbl_applications t1
             ORDER BY t1.app_id
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllApplications);
+        const result = await pool.query(sqlGetAllApplications);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Aplicaciones encontradas' : 'No se encontraron Aplicaciones',
-            applications: result?.recordset
+            message: result?.rows.length > 0 ? 'Aplicaciones encontradas' : 'No se encontraron Aplicaciones',
+            applications: result?.rows
         };
 
     } catch (error) {
@@ -106,18 +99,14 @@ const getApplicationById = async( appId ) => {
                 ,t1.app_component
                 ,t1.app_alt
                 ,t1.app_status
-            FROM dbo.tbl_applications t1
-            WHERE t1.app_id = @appId
+            FROM tbl_applications t1
+            WHERE t1.app_id = $1
             ORDER BY t1.app_id
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('appId', sql.Int, appId )                            
-                            .query(sqlGetAplicationByID);
+        const result = await pool.query(sqlGetAplicationByID, [appId]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -143,24 +132,20 @@ const getAllApplicationsByName = async(appDescription) => {
             ,t1.app_component
             ,t1.app_alt
             ,t1.app_status
-        FROM dbo.tbl_applications t1
-        WHERE UPPER(t1.app_description)  LIKE UPPER(CONCAT('%',@appDescription,'%'))
+        FROM tbl_applications t1
+        WHERE UPPER(t1.app_description)  LIKE UPPER(CONCAT('%',$1,'%'))
             AND t1.app_status = 'S'
         ORDER BY t1.app_id
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('appDescription', sql.VarChar, appDescription )
-                            .query(qryFindApplication);
+        const result = await pool.query(qryFindApplication, [appDescription]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Aplicaciones encontrados' : 'No se encontraron Aplicaciones',
-            applications: result?.recordset
+            message: result?.rows.length > 0 ? 'Aplicaciones encontrados' : 'No se encontraron Aplicaciones',
+            applications: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -188,7 +173,7 @@ const createApplication = async ( {
     try {
         
         const sqlCreateApplication = `
-            INSERT INTO dbo.tbl_applications
+            INSERT INTO tbl_applications
                     (app_code
                     ,app_description
                     ,app_creation_date
@@ -200,33 +185,21 @@ const createApplication = async ( {
                     ,app_alt
                     ,app_status)
             VALUES
-                    (UPPER(@appCode)
-                    ,UPPER(@appDescription)
-                    ,DBO.fncGetDate()
-                    ,@appParentId
-                    ,UPPER(@appMenuDisplay)
-                    ,UPPER(@appUrl)
-                    ,@appOrder
-                    ,UPPER(@appComponent)
-                    ,UPPER(@appAlt)
-                    ,UPPER(@appStatus))
+                    (UPPER($1)
+                    ,UPPER($2)
+                    ,NOW()
+                    ,$3
+                    ,UPPER($4)
+                    ,UPPER($5)
+                    ,$6
+                    ,UPPER($7)
+                    ,UPPER($8)
+                    ,UPPER($9))
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('appCode',          sql.VarChar,  appCode )             
-                            .input('appDescription',   sql.VarChar,  appDescription )
-                            .input('appParentId',      sql.Int,      appParentId )
-                            .input('appMenuDisplay',   sql.VarChar,  appMenuDisplay )
-                            .input('appUrl',           sql.VarChar,  appUrl )
-                            .input('appOrder',         sql.Int,      appOrder )
-                            .input('appComponent',     sql.VarChar,  appComponent )
-                            .input('appAlt',           sql.VarChar,  appAlt )
-                            .input('appStatus',        sql.VarChar,  appStatus )
-                            .query(sqlCreateApplication);
+        const result = await pool.query(sqlCreateApplication, [appCode, appDescription, appParentId, appMenuDisplay, appUrl, appOrder, appComponent, appAlt, appStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -255,16 +228,12 @@ const updateApplication = async( params, appId ) => {
         const sqlUpdateApplication= `
         UPDATE tbl_applications
            SET ${columnSet}
-         WHERE app_id = @appId
+         WHERE app_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('appId',     sql.VarChar, appId )
-                            .query(sqlUpdateApplication);
+        const result = await pool.query(sqlUpdateApplication, [appId]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -279,16 +248,12 @@ const deleteApplication = async ( appId ) => {
         const sqlDeleteApplication = `
         DELETE 
           FROM tbl_applications
-         WHERE app_id = @appId
+         WHERE app_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('appId',     sql.VarChar, appId )
-                            .query(sqlDeleteApplication);
+        const result = await pool.query(sqlDeleteApplication, [appId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const realStateRoomTypeExist = async (rsrtCode ) => {
@@ -7,26 +7,22 @@ const realStateRoomTypeExist = async (rsrtCode ) => {
     let respuesta;
     try {
         const sqlRealStateRoomTypeExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Recintos Tipo ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_real_state_rooms_type t1
-                    WHERE t1.rsrt_code      =   @rsrtCode
+                    WHERE t1.rsrt_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rsrtCode',  sql.VarChar,rsrtCode )
-                            .query(sqlRealStateRoomTypeExist);
+        const result = await pool.query(sqlRealStateRoomTypeExist, [rsrtCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -51,20 +47,17 @@ const getAllRealStateRoomTypes = async() => {
                 ,t1.rsrt_description
                 ,t1.rsrt_creation_date
                 ,t1.rsrt_status
-            FROM dbo.tbl_real_state_rooms_type t1
+            FROM tbl_real_state_rooms_type t1
             order by t1.rsrt_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllRealStateRoomTypes);
+        const result = await pool.query(sqlGetAllRealStateRoomTypes);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recintos Tipo encontrados' : 'No se encontraron Recintos Tipo',
-            realStateRoomTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Recintos Tipo encontrados' : 'No se encontraron Recintos Tipo',
+            realStateRoomTypes: result?.rows
         };
 
     } catch (error) {
@@ -90,18 +83,14 @@ const getRealStateRoomTypeById = async(rsrtCode) => {
                 ,t1.rsrt_description
                 ,t1.rsrt_creation_date
                 ,t1.rsrt_status
-            FROM dbo.tbl_real_state_rooms_type t1
-            WHERE t1.rsrt_code = @rsrtCode 
+            FROM tbl_real_state_rooms_type t1
+            WHERE t1.rsrt_code = $1 
             order by t1.rsrt_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rsrtCode', sql.VarChar,rsrtCode )                            
-                            .query(sqlGetLevelByID);
+        const result = await pool.query(sqlGetLevelByID, [rsrtCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -119,24 +108,20 @@ const getAllProgamTypeByName = async(rsrtDescription) => {
             ,t1.rsrt_description
             ,t1.rsrt_creation_date
             ,t1.rsrt_status
-        FROM dbo.tbl_real_state_rooms_type t1
-        WHERE UPPER(t1.rsrt_description)  LIKE UPPER(CONCAT('%',@rsrtDescription,'%'))
+        FROM tbl_real_state_rooms_type t1
+        WHERE UPPER(t1.rsrt_description)  LIKE UPPER(CONCAT('%',$1,'%'))
         AND t1.rsrt_status = 'S'   
         order by t1.rsrt_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rsrtDescription', sql.VarChar, rsrtDescription )
-                            .query(qryFindRealStateRoomTypes);
+        const result = await pool.query(qryFindRealStateRoomTypes, [rsrtDescription]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recintos Tipo encontradas' : 'No se encontraron Recintos Tipo',
-            realStateRoomTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Recintos Tipo encontradas' : 'No se encontraron Recintos Tipo',
+            realStateRoomTypes: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -158,27 +143,21 @@ const createRealStateRoomType = async ( {
     try {
         
         const sqlCreateRealStateRoomType = `
-                INSERT INTO dbo.tbl_real_state_rooms_type
+                INSERT INTO tbl_real_state_rooms_type
                         ( rsrt_code
                          ,rsrt_description
                          ,rsrt_creation_date
                          ,rsrt_status)
                 VALUES
-                        (@rsrtCode
-                        ,@rsrtDescription
-                        ,DBO.fncGetDate()
-                        ,@rsrtStatus)
+                        ($1
+                        ,$2
+                        ,NOW()
+                        ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rsrtCode',          sql.VarChar,  rsrtCode        )             
-                            .input('rsrtDescription',   sql.VarChar,  rsrtDescription )
-                            .input('rsrtStatus',        sql.VarChar,  rsrtStatus      )                                                                                                                                                                                                                                
-                            .query(sqlCreateRealStateRoomType);
+        const result = await pool.query(sqlCreateRealStateRoomType, [rsrtCode, rsrtDescription, rsrtStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -207,16 +186,12 @@ const updateRealStateRoomType = async( params,rsrtCode ) => {
         const sqlUpdateRealStateRoomType= `
         UPDATE tbl_real_state_rooms_type
            SET ${columnSet}
-         WHERE rsrt_code = @rsrtCode
+         WHERE rsrt_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rsrtCode',     sql.VarChar,rsrtCode )
-                            .query(sqlUpdateRealStateRoomType);
+        const result = await pool.query(sqlUpdateRealStateRoomType, [rsrtCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -231,16 +206,12 @@ const deleteRealStateRoomType = async (rsrtCode) => {
         const sqlDeleteRealStateRoomType = `
         DELETE 
           FROM tbl_real_state_rooms_type
-         WHERE rsrt_code = @rsrtCode
+         WHERE rsrt_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rsrtCode',     sql.VarChar,rsrtCode )
-                            .query(sqlDeleteRealStateRoomType);
+        const result = await pool.query(sqlDeleteRealStateRoomType, [rsrtCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

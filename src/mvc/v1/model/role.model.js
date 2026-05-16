@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const roleExists = async ( roleName ) => {
@@ -7,26 +7,22 @@ const roleExists = async ( roleName ) => {
     let respuesta;
     try {
         const sqlRoleExists = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Role ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_roles t1
-                   WHERE t1.role_name      =   @roleName
+                   WHERE t1.role_name      =   $1
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('roleName',  sql.VarChar, roleName )
-                            .query(sqlRoleExists);
+        const result = await pool.query(sqlRoleExists, [roleName]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -48,25 +44,22 @@ const getAllRoles = async() => {
         const sqlGetAllRoles = `
           SELECT 
                  ROW_NUMBER() OVER(ORDER BY  t1.role_id ASC) AS id
-                 ,t1.role_id             AS  roleId
-                 ,t1.role_name           AS  roleName
-                 ,t1.role_description    AS  roleDescription
-                 ,t1.role_creation_date  AS  roleCreationDate
-                 ,t1.role_status         AS  roleStatus
-           FROM dbo.tbl_roles t1
+                 ,t1.role_id             AS "roleId"
+                 ,t1.role_name           AS "roleName"
+                 ,t1.role_description    AS "roleDescription"
+                 ,t1.role_creation_date  AS "roleCreationDate"
+                 ,t1.role_status         AS "roleStatus"
+           FROM tbl_roles t1
         ORDER BY t1.role_id
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllRoles);
+        const result = await pool.query(sqlGetAllRoles);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Roles encontrados' : 'No se encontraron roles',
-            roles: result?.recordset
+            message: result?.rows.length > 0 ? 'Roles encontrados' : 'No se encontraron roles',
+            roles: result?.rows
         };
 
     } catch (error) {
@@ -89,22 +82,18 @@ const getRoleById = async( roleId ) => {
         const sqlGetRoleByID = `
             SELECT 
                 ROW_NUMBER() OVER(ORDER BY  t1.role_id ASC) AS id
-                ,t1.role_id             AS  roleId
-                ,t1.role_name           AS  roleName
-                ,t1.role_description    AS  roleDescription
-                ,t1.role_creation_date  AS  roleCreationDate
-                ,t1.role_status         AS  roleStatus
+                ,t1.role_id             AS "roleId"
+                ,t1.role_name           AS "roleName"
+                ,t1.role_description    AS "roleDescription"
+                ,t1.role_creation_date  AS "roleCreationDate"
+                ,t1.role_status         AS "roleStatus"
             FROM tbl_roles t1
-           WHERE t1.role_id = @roleId
+           WHERE t1.role_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('roleId', sql.Int, roleId )                            
-                            .query(sqlGetRoleByID);
+        const result = await pool.query(sqlGetRoleByID, [roleId]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -119,29 +108,25 @@ const getAllRolesByName = async(roleName) => {
     `
         SELECT 
             ROW_NUMBER() OVER(ORDER BY  t1.role_id ASC) AS id
-            ,t1.role_id             AS  roleId
-            ,t1.role_name           AS  roleName
-            ,t1.role_description    AS  roleDescription
-            ,t1.role_creation_date  AS  roleCreationDate
-            ,t1.role_status         AS  roleStatus
-        FROM dbo.tbl_roles t1
-        WHERE (UPPER(t1.role_name)  LIKE UPPER(CONCAT('%',@roleName,'%'))
-        or UPPER(t1.role_description)  LIKE UPPER(CONCAT('%',@roleName,'%')))
+            ,t1.role_id             AS "roleId"
+            ,t1.role_name           AS "roleName"
+            ,t1.role_description    AS "roleDescription"
+            ,t1.role_creation_date  AS "roleCreationDate"
+            ,t1.role_status         AS "roleStatus"
+        FROM tbl_roles t1
+        WHERE (UPPER(t1.role_name)  LIKE UPPER(CONCAT('%',$1,'%'))
+        or UPPER(t1.role_description)  LIKE UPPER(CONCAT('%',$1,'%')))
         AND t1.role_status = 'S'
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('roleName', sql.VarChar, roleName )
-                            .query(qryFindRole);
+        const result = await pool.query(qryFindRole, [roleName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Roles encontrados' : 'No se encontraron roles',
-            roles: result?.recordset
+            message: result?.rows.length > 0 ? 'Roles encontrados' : 'No se encontraron roles',
+            roles: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -169,22 +154,16 @@ const createRole = async ( {
             role_creation_date,
             role_status
         )VALUES(
-            UPPER(@roleName),
-            UPPER(@roleDescription),
-            DBO.fncGetDate(),
-            UPPER(@roleStatus)
+            UPPER($1),
+            UPPER($2),
+            NOW(),
+            UPPER($3)
         )      
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('roleName',          sql.VarChar,  roleName )
-                            .input('roleDescription',   sql.VarChar,  roleName )
-                            .input('roleStatus',        sql.VarChar,  roleStatus )
-                            .query(sqlCreateRole);
+        const result = await pool.query(sqlCreateRole, [roleName, roleName, roleStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -213,16 +192,12 @@ const updateRole = async( params, roleId ) => {
         const sqlUpdateRole = `
         UPDATE tbl_roles
            SET ${columnSet}
-         WHERE role_id = @roleId
+         WHERE role_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('roleId',     sql.VarChar, roleId )
-                            .query(sqlUpdateRole);
+        const result = await pool.query(sqlUpdateRole, [roleId]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -237,16 +212,12 @@ const deleteRole = async ( roleId ) => {
         const sqlDeleteRole = `
         DELETE 
           FROM tbl_roles
-         WHERE role_id = @roleId
+         WHERE role_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('roleId',     sql.VarChar, roleId )
-                            .query(sqlDeleteRole);
+        const result = await pool.query(sqlDeleteRole, [roleId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

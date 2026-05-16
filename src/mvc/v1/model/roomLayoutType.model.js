@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const roomLayoutTypeExist = async ( rlatDescription ) => {
@@ -7,26 +7,22 @@ const roomLayoutTypeExist = async ( rlatDescription ) => {
     let respuesta;
     try {
         const sqlRoomLayoutTypeExist = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Recintos Tipo ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_rooms_layout_type t1
-                   WHERE t1.rlat_description      =   @rlatDescription
+                   WHERE t1.rlat_description      =   $1
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlatDescription',  sql.VarChar, rlatDescription )
-                            .query(sqlRoomLayoutTypeExist);
+        const result = await pool.query(sqlRoomLayoutTypeExist, [rlatDescription]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -48,23 +44,20 @@ const getAllRoomLayoutTypes = async() => {
         const sqlGetAllRoomLayoutTypes = `
           SELECT 
                  ROW_NUMBER() OVER(ORDER BY  t1.rlat_code ASC) AS id,
-                 t1.rlat_code            AS  rlatCode,
-                 t1.rlat_description     AS  roleName,
-                 t1.rlat_creation_date   AS  roleCreationDate
-           FROM dbo.tbl_rooms_layout_type t1
+                 t1.rlat_code            AS "rlatCode",
+                 t1.rlat_description     AS "roleName",
+                 t1.rlat_creation_date   AS "roleCreationDate"
+           FROM tbl_rooms_layout_type t1
         ORDER BY t1.rlat_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllRoomLayoutTypes);
+        const result = await pool.query(sqlGetAllRoomLayoutTypes);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recintos Tipo encontrados' : 'No se encontraron Recintos Tipo',
-            roomLayoutTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Recintos Tipo encontrados' : 'No se encontraron Recintos Tipo',
+            roomLayoutTypes: result?.rows
         };
 
     } catch (error) {
@@ -90,16 +83,12 @@ const getRoomLayoutTypeById = async( rlatCode ) => {
                  t1.rlat_creation_date,
                  t1.rlat_status
             FROM tbl_rooms_layout_type t1
-           WHERE t1.rlat_code = @rlatCode
+           WHERE t1.rlat_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlatCode', sql.VarChar, rlatCode )                            
-                            .query(sqlGetRomeLayoutTypeByID);
+        const result = await pool.query(sqlGetRomeLayoutTypeByID, [rlatCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -116,23 +105,19 @@ const getAllRoomLayoutTypesByName = async(rlatName) => {
           ,t1.rlat_description
           ,t1.rlat_creation_date
           ,t1.rlat_status
-     FROM dbo.tbl_rooms_layout_type T1
-     WHERE UPPER(t1.rlat_description)  LIKE UPPER(CONCAT('%',@rlatName,'%'))
+     FROM tbl_rooms_layout_type T1
+     WHERE UPPER(t1.rlat_description)  LIKE UPPER(CONCAT('%',$1,'%'))
        AND t1.rlat_status = 'S'
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlatName', sql.VarChar, rlatName )
-                            .query(qryFindRole);
+        const result = await pool.query(qryFindRole, [rlatName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recintos Tipo encontrados' : 'No se encontraron Recintos Tipo',
-            roomLayoutTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Recintos Tipo encontrados' : 'No se encontraron Recintos Tipo',
+            roomLayoutTypes: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -160,22 +145,16 @@ const createRoomLayoutType = async ( {
             rlat_creation_date,
             rlat_status
         )VALUES(
-            UPPER(@rlatCode),
-            UPPER(@rlatDescription),
-            DBO.fncGetDate(),
-            UPPER(@rlatStatus)
+            UPPER($1),
+            UPPER($2),
+            NOW(),
+            UPPER($3)
         )      
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlatCode',         sql.VarChar,  rlatCode )
-                            .input('rlatDescription',  sql.VarChar,  rlatDescription )
-                            .input('rlatStatus',       sql.VarChar,  rlatStatus      )
-                            .query(sqlCreateRoomLayoutType);
+        const result = await pool.query(sqlCreateRoomLayoutType, [rlatCode, rlatDescription, rlatStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -204,16 +183,12 @@ const updateRoomLayoutType = async( params, rlatCode ) => {
         const sqlUpdateRoomLayoutType = `
         UPDATE tbl_rooms_layout_type
            SET ${columnSet}
-         WHERE rlat_code = @rlatCode
+         WHERE rlat_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlatCode',     sql.VarChar, rlatCode )
-                            .query(sqlUpdateRoomLayoutType);
+        const result = await pool.query(sqlUpdateRoomLayoutType, [rlatCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -228,16 +203,12 @@ const deleteRoomLayoutType = async ( rlatCode ) => {
         const sqlDeleteRoomLayoutType = `
         DELETE 
           FROM tbl_rooms_layout_type
-         WHERE rlat_code = @rlatCode
+         WHERE rlat_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlatCode',     sql.VarChar, rlatCode )
-                            .query(sqlDeleteRoomLayoutType);
+        const result = await pool.query(sqlDeleteRoomLayoutType, [rlatCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

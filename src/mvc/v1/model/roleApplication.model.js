@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const roleApplicationExist = async (rlapRoleId, rlapAppId ) => {
@@ -7,28 +7,23 @@ const roleApplicationExist = async (rlapRoleId, rlapAppId ) => {
     let respuesta;
     try {
         const sqlRoleApplicationExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Rol Aplicacion ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_role_applications t1
-                    WHERE t1.rlap_role_id     =   @rlapRoleId
-                      and t1.rlap_app_id      =   @rlapAppId
+                    WHERE t1.rlap_role_id     =   $1
+                      and t1.rlap_app_id      =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlapRoleId', sql.Int,rlapRoleId )
-                            .input('rlapAppId',  sql.Int,rlapAppId  )
-                            .query(sqlRoleApplicationExist);
+        const result = await pool.query(sqlRoleApplicationExist, [rlapRoleId, rlapAppId]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -53,20 +48,17 @@ const getAllRoleApplications = async() => {
                 ,t1.rlap_app_id
                 ,t1.rlap_creation_date
                 ,t1.rlap_status
-            FROM dbo.tbl_role_applications t1
+            FROM tbl_role_applications t1
             order by t1.rlap_role_id,t1.rlap_app_id
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllRoleApplications);
+        const result = await pool.query(sqlGetAllRoleApplications);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios Area de Compra encontrados' : 'No se encontraron Usuarios Area de Compra',
-            roleApplications: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios Area de Compra encontrados' : 'No se encontraron Usuarios Area de Compra',
+            roleApplications: result?.rows
         };
 
     } catch (error) {
@@ -92,20 +84,15 @@ const getRoleApplicationById = async(rlapRoleId, rlapAppId) => {
                 ,t1.rlap_app_id
                 ,t1.rlap_creation_date
                 ,t1.rlap_status
-            FROM dbo.tbl_role_applications t1
-            WHERE t1.rlap_role_id        =   @rlapRoleId
-              and t1.rlap_app_id      =   @rlapAppId
+            FROM tbl_role_applications t1
+            WHERE t1.rlap_role_id        =   $1
+              and t1.rlap_app_id      =   $2
             order by t1.rlap_role_id,t1.rlap_app_id
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlapRoleId', sql.Int,rlapRoleId )
-                            .input('rlapAppId',  sql.Int,rlapAppId  )
-                            .query(sqlGetRoleApplicationByID);
+        const result = await pool.query(sqlGetRoleApplicationByID, [rlapRoleId, rlapAppId]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -123,30 +110,26 @@ const getAllRoleApplicationByName = async(rlapName) => {
             ,t1.rlap_app_id
             ,t1.rlap_creation_date
             ,t1.rlap_status
-        FROM dbo.tbl_role_applications t1,
-            dbo.tbl_roles t2,
-            dbo.tbl_applications t3
+        FROM tbl_role_applications t1,
+            tbl_roles t2,
+            tbl_applications t3
         WHERE 
             t1.rlap_role_id =  t2.role_id
         and t1.rlap_app_id  = t3.app_id
-        and (UPPER(t2.role_name)        LIKE UPPER(CONCAT('%',@rlapName,'%')) OR
-             UPPER(t3.app_description)  LIKE UPPER(CONCAT('%',@rlapName,'%'))) 
+        and (UPPER(t2.role_name)        LIKE UPPER(CONCAT('%',$1,'%')) OR
+             UPPER(t3.app_description)  LIKE UPPER(CONCAT('%',$1,'%'))) 
         AND t1.rlap_status = 'S'            
         order by t1.rlap_role_id,t1.rlap_app_id
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlapName', sql.VarChar,rlapName )
-                            .query(qryFindRoleApplications);
+        const result = await pool.query(qryFindRoleApplications, [rlapName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Rol Aplicacion encontradas' : 'No se encontraron Rol Aplicacion',
-            roleApplications: result?.recordset
+            message: result?.rows.length > 0 ? 'Rol Aplicacion encontradas' : 'No se encontraron Rol Aplicacion',
+            roleApplications: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -174,21 +157,15 @@ const createRoleApplication = async ( {
                     ,rlap_creation_date
                     ,rlap_status)
             VALUES
-                    (@rlapRoleId
-                    ,@rlapAppId
-                    ,DBO.fncGetDate()
-                    ,@rlapStatus)
+                    ($1
+                    ,$2
+                    ,NOW()
+                    ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlapRoleId',    sql.Int,     rlapRoleId )             
-                            .input('rlapAppId',     sql.Int,     rlapAppId  )
-                            .input('rlapStatus',    sql.VarChar, rlapStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateRoleApplication);
+        const result = await pool.query(sqlCreateRoleApplication, [rlapRoleId, rlapAppId, rlapStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -217,18 +194,13 @@ const updateRoleApplication = async( params,rlapRoleId, rlapAppId) => {
         const sqlUpdateRoleApplication= `
         UPDATE tbl_role_applications
            SET ${columnSet}
-        WHERE rlap_role_id      =   @rlapRoleId
-           and rlap_app_id      =   @rlapAppId
+        WHERE rlap_role_id      =   $1
+           and rlap_app_id      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlapRoleId',    sql.Int,  rlapRoleId )             
-                            .input('rlapAppId',     sql.Int,  rlapAppId  )
-                            .query(sqlUpdateRoleApplication);
+        const result = await pool.query(sqlUpdateRoleApplication, [rlapRoleId, rlapAppId]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -243,18 +215,13 @@ const deleteRoleApplication = async (rlapRoleId, rlapAppId) => {
         const sqlDeleteRoleApplication = `
         DELETE 
           FROM tbl_role_applications
-        WHERE rlap_role_id     =   @rlapRoleId
-          and rlap_app_id      =   @rlapAppId
+        WHERE rlap_role_id     =   $1
+          and rlap_app_id      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlapRoleId',    sql.Int, rlapRoleId )             
-                            .input('rlapAppId',     sql.Int, rlapAppId  )
-                            .query(sqlDeleteRoleApplication);
+        const result = await pool.query(sqlDeleteRoleApplication, [rlapRoleId, rlapAppId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

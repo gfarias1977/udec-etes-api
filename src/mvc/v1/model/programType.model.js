@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const programTypeExist = async (protCode ) => {
@@ -7,26 +7,22 @@ const programTypeExist = async (protCode ) => {
     let respuesta;
     try {
         const sqlProgramTypeExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Tipo de Programa ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_programs_type t1
-                    WHERE t1.prot_code      =   @protCode
+                    WHERE t1.prot_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('protCode',  sql.VarChar,protCode )
-                            .query(sqlProgramTypeExist);
+        const result = await pool.query(sqlProgramTypeExist, [protCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -51,20 +47,17 @@ const getAllProgramTypes = async() => {
                 ,t1.prot_name
                 ,t1.prot_creation_date
                 ,t1.prot_status
-            FROM dbo.tbl_programs_type t1
+            FROM tbl_programs_type t1
             order by t1.prot_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllProgramTypes);
+        const result = await pool.query(sqlGetAllProgramTypes);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Tipo de Programa encontrados' : 'No se encontraron Tipo de Programa',
-            programTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Tipo de Programa encontrados' : 'No se encontraron Tipo de Programa',
+            programTypes: result?.rows
         };
 
     } catch (error) {
@@ -90,18 +83,14 @@ const getProgramTypeById = async(protCode) => {
                 ,t1.prot_name
                 ,t1.prot_creation_date
                 ,t1.prot_status
-            FROM dbo.tbl_programs_type t1
-            WHERE t1.prot_code = @protCode 
+            FROM tbl_programs_type t1
+            WHERE t1.prot_code = $1 
             order by t1.prot_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('protCode', sql.VarChar,protCode )                            
-                            .query(sqlGetLevelByID);
+        const result = await pool.query(sqlGetLevelByID, [protCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -119,24 +108,20 @@ const getAllProgamTypeByName = async(protName) => {
             ,t1.prot_name
             ,t1.prot_creation_date
             ,t1.prot_status
-        FROM dbo.tbl_programs_type t1
-        WHERE UPPER(t1.prot_name)  LIKE UPPER(CONCAT('%',@protName,'%'))
+        FROM tbl_programs_type t1
+        WHERE UPPER(t1.prot_name)  LIKE UPPER(CONCAT('%',$1,'%'))
         AND t1.prot_status = 'S'   
         order by t1.prot_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('protName', sql.VarChar, protName )
-                            .query(qryFindProgramTypes);
+        const result = await pool.query(qryFindProgramTypes, [protName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Tipo de Programa encontradas' : 'No se encontraron Tipo de Programa',
-            programTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Tipo de Programa encontradas' : 'No se encontraron Tipo de Programa',
+            programTypes: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -158,27 +143,21 @@ const createProgramType = async ( {
     try {
         
         const sqlCreateProgramType = `
-                INSERT INTO dbo.tbl_programs_type
+                INSERT INTO tbl_programs_type
                         ( prot_code
                          ,prot_name
                          ,prot_creation_date
                          ,prot_status)
                 VALUES
-                        (@protCode
-                        ,@protName
-                        ,DBO.fncGetDate()
-                        ,@protStatus)
+                        ($1
+                        ,$2
+                        ,NOW()
+                        ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('protCode',   sql.VarChar,  protCode   )             
-                            .input('protName',   sql.VarChar,  protName   )
-                            .input('protStatus', sql.VarChar,  protStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateProgramType);
+        const result = await pool.query(sqlCreateProgramType, [protCode, protName, protStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -207,16 +186,12 @@ const updateProgramType = async( params,protCode ) => {
         const sqlUpdateProgramType= `
         UPDATE tbl_programs_type
            SET ${columnSet}
-         WHERE prot_code = @protCode
+         WHERE prot_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('protCode',     sql.VarChar,protCode )
-                            .query(sqlUpdateProgramType);
+        const result = await pool.query(sqlUpdateProgramType, [protCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -231,16 +206,12 @@ const deleteProgramType = async (protCode) => {
         const sqlDeleteProgramType = `
         DELETE 
           FROM tbl_programs_type
-         WHERE prot_code = @protCode
+         WHERE prot_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('protCode',     sql.VarChar,protCode )
-                            .query(sqlDeleteProgramType);
+        const result = await pool.query(sqlDeleteProgramType, [protCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const UserRoleExist = async (usroUserId, usroRoleId ) => {
@@ -7,28 +7,23 @@ const UserRoleExist = async (usroUserId, usroRoleId ) => {
     let respuesta;
     try {
         const sqlUserRoleExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Usuario Rol ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_user_roles t1
-                    WHERE t1.usro_user_id    =   @usroUserId
-                    and t1.usro_role_id      =   @usroRoleId
+                    WHERE t1.usro_user_id    =   $1
+                    and t1.usro_role_id      =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usroUserId',  sql.Int,usroUserId )
-                            .input('usroRoleId',  sql.VarChar,usroRoleId )
-                            .query(sqlUserRoleExist);
+        const result = await pool.query(sqlUserRoleExist, [usroUserId, usroRoleId]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -49,28 +44,25 @@ const getAllUserRoles = async() => {
     try {
         const sqlGetAllUserRoles = `
             SELECT ROW_NUMBER() OVER(ORDER BY t1.usro_user_id,t1.usro_role_id ASC) AS id 
-                ,t1.usro_user_id AS usroUserId
-                ,t1.usro_role_id AS usroRoleId
-                ,t2.role_name AS usroRoleName
-                ,t2.role_description AS usroRoleDescription
-                ,t1.usro_creation_date AS usroCreationDate
-                ,t1.usro_status AS usroStatus
-            FROM dbo.tbl_user_roles t1,
-                 dbo.tbl_roles t2
+                ,t1.usro_user_id AS "usroUserId"
+                ,t1.usro_role_id AS "usroRoleId"
+                ,t2.role_name AS "usroRoleName"
+                ,t2.role_description AS "usroRoleDescription"
+                ,t1.usro_creation_date AS "usroCreationDate"
+                ,t1.usro_status AS "usroStatus"
+            FROM tbl_user_roles t1,
+                 tbl_roles t2
             WHERE t1.usro_role_id = t2.role_id 
             order by t2.role_description
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllUserRoles);
+        const result = await pool.query(sqlGetAllUserRoles);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios Rol encontrados' : 'No se encontraron Usuarios Rol',
-            userRoles: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios Rol encontrados' : 'No se encontraron Usuarios Rol',
+            userRoles: result?.rows
         };
 
     } catch (error) {
@@ -92,29 +84,25 @@ const getUserRolesById = async(usroUserId) => {
         
         const sqlGetUserRoleByID = `
         SELECT ROW_NUMBER() OVER(ORDER BY t2.usro_user_id,t2.usro_role_id ASC) AS id 
-            ,coalesce(t2.usro_user_id,@usroUserId) as usroUserId
+            ,coalesce(t2.usro_user_id,$1) as usroUserId
             ,t1.role_id usroRoleId
             ,t1.role_name as usroRoleName
-            ,t1.role_description AS usroRoleDescription
+            ,t1.role_description AS "usroRoleDescription"
             ,coalesce(t2.usro_status, 'N') as usroAsigned
             ,coalesce(t2.usro_status,t1.role_status) as usroStatus
-        FROM dbo.tbl_roles t1
-            left join dbo.tbl_user_roles t2 on t2.usro_role_id = t1.role_id  
-            and t2.usro_user_id = @usroUserId
+        FROM tbl_roles t1
+            left join tbl_user_roles t2 on t2.usro_role_id = t1.role_id  
+            and t2.usro_user_id = $1
         ORDER BY t1.role_description, coalesce(t2.usro_status, 'N') 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usroUserId',    sql.Int,    usroUserId   )
-                            .query(sqlGetUserRoleByID);
+        const result = await pool.query(sqlGetUserRoleByID, [usroUserId]);
         
             respuesta = {
                 type: 'ok',
                 status: 200,
-                message: result?.recordset.length > 0 ? 'Usuario Roles encontrados' : 'No se encontraron Usuario Roles',
-                userRoles: result?.recordset
+                message: result?.rows.length > 0 ? 'Usuario Roles encontrados' : 'No se encontraron Usuario Roles',
+                userRoles: result?.rows
         };
                     
         } catch (error) {
@@ -137,36 +125,32 @@ const getAllUserRoleByName = async(usroName) => {
     const qryFindUserRoles = 
     `
         SELECT ROW_NUMBER() OVER(ORDER BY t1.usro_user_id,t1.usro_role_id ASC) AS id 
-            ,t1.usro_user_id AS usroUserId
-            ,t1.usro_role_id AS usroRoleName
-            ,t3.role_name AS usroRoleName
-            ,t3.role_description AS usroRoleDescription
-            ,t1.usro_creation_date AS usroCreationDate
-            ,t1.usro_status AS  usroStatus
-        FROM dbo.tbl_user_roles t1,
-            dbo.tbl_user t2,
-            dbo.tbl_roles t3
+            ,t1.usro_user_id AS "usroUserId"
+            ,t1.usro_role_id AS "usroRoleName"
+            ,t3.role_name AS "usroRoleName"
+            ,t3.role_description AS "usroRoleDescription"
+            ,t1.usro_creation_date AS "usroCreationDate"
+            ,t1.usro_status AS "usroStatus"
+        FROM tbl_user_roles t1,
+            tbl_user t2,
+            tbl_roles t3
         WHERE 
             t1.usro_user_id = t2.user_id
         and t1.usro_role_id = t3.role_id
-        and (UPPER(t2.user_first_name)  LIKE UPPER(CONCAT('%',@usroName,'%')) OR
-        UPPER(t3.role_name)  LIKE UPPER(CONCAT('%',@usroName,'%'))) 
+        and (UPPER(t2.user_first_name)  LIKE UPPER(CONCAT('%',$1,'%')) OR
+        UPPER(t3.role_name)  LIKE UPPER(CONCAT('%',$1,'%'))) 
         AND t1.usro_status = 'S'            
         order by ,t3.role_description
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usroName', sql.VarChar,usroName )
-                            .query(qryFindUserRoles);
+        const result = await pool.query(qryFindUserRoles, [usroName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios Rol encontradas' : 'No se encontraron Usuarios Rol',
-            userRoles: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios Rol encontradas' : 'No se encontraron Usuarios Rol',
+            userRoles: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -194,21 +178,15 @@ const createUserRole = async ( {
                     ,usro_creation_date
                     ,usro_status)
             VALUES
-                    (@usroUserId
-                    ,@usroRoleId
-                    ,DBO.fncGetDate()
-                    ,@usroStatus)
+                    ($1
+                    ,$2
+                    ,NOW()
+                    ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usroUserId',     sql.VarChar, usroUserId   )             
-                            .input('usroRoleId',     sql.VarChar, usroRoleId   )
-                            .input('usroStatus',     sql.VarChar, usroStatus   )                                                                                                                                                                                                                                
-                            .query(sqlCreateUserRole);
+        const result = await pool.query(sqlCreateUserRole, [usroUserId, usroRoleId, usroStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -237,18 +215,13 @@ const updateUserRole = async( params,usroUserId, usroRoleId) => {
         const sqlUpdateUserRole= `
         UPDATE tbl_user_roles
            SET ${columnSet}
-        WHERE usro_user_id       =   @usroUserId
-           and usro_role_id      =   @usroRoleId
+        WHERE usro_user_id       =   $1
+           and usro_role_id      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usroUserId',     sql.VarChar, usroUserId )             
-                            .input('usroRoleId',     sql.VarChar, usroRoleId )
-                            .query(sqlUpdateUserRole);
+        const result = await pool.query(sqlUpdateUserRole, [usroUserId, usroRoleId]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -263,18 +236,13 @@ const deleteUserRole = async (usroUserId, usroRoleId) => {
         const sqlDeleteUserRole = `
         DELETE 
           FROM tbl_user_roles
-        WHERE usro_user_id         =   @usroUserId
-          and usro_role_id      =   @usroRoleId
+        WHERE usro_user_id         =   $1
+          and usro_role_id      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usroUserId',     sql.VarChar, usroUserId )             
-                            .input('usroRoleId',     sql.VarChar, usroRoleId )
-                            .query(sqlDeleteUserRole);
+        const result = await pool.query(sqlDeleteUserRole, [usroUserId, usroRoleId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {
@@ -291,16 +259,12 @@ const deleteUserRoleByUserId = async (usroUserId) => {
         const sqlDeleteUserRole = `
         DELETE 
           FROM tbl_user_roles
-        WHERE usro_user_id         =   @usroUserId
+        WHERE usro_user_id         =   $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usroUserId',     sql.VarChar, usroUserId )             
-                            .query(sqlDeleteUserRole);
+        const result = await pool.query(sqlDeleteUserRole, [usroUserId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

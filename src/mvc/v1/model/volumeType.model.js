@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const volumeTypeExists = async ( vlmCode) => {
@@ -7,26 +7,22 @@ const volumeTypeExists = async ( vlmCode) => {
     let respuesta;
     try {
         const sqlVolumeTypeExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Tipo de Volumen Bibliografia ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_volume_types t1
-                    WHERE t1.vlm_code      =   @vlmCode
+                    WHERE t1.vlm_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('vlmCode',  sql.VarChar, vlmCode )
-                            .query(sqlVolumeTypeExists);
+        const result = await pool.query(sqlVolumeTypeExists, [vlmCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,24 +43,21 @@ const getAllVolumeTypes = async() => {
     try {
         const sqlGetAllvolumeTypes = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.vlm_id ASC) AS id  
-            ,t1.vlm_id           AS vlmId          
-            ,t1.vlm_code	     AS vlmCode
-            ,t1.vlm_description	 AS vlmDescription
-            ,t1.vlm_status		 AS vlmStatus
-        FROM dbo.tbl_volume_types t1
+            ,t1.vlm_id           AS "vlmId"          
+            ,t1.vlm_code	     AS "vlmCode"
+            ,t1.vlm_description	 AS "vlmDescription"
+            ,t1.vlm_status		 AS "vlmStatus"
+        FROM tbl_volume_types t1
         ORDER BY t1.vlm_description
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllvolumeTypes);
+        const result = await pool.query(sqlGetAllvolumeTypes);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Tipo de volumeos encontrados' : 'No se encontraron Tipos de volumeos',
-            volumeTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Tipo de volumeos encontrados' : 'No se encontraron Tipos de volumeos',
+            volumeTypes: result?.rows
         };
 
     } catch (error) {
@@ -88,7 +81,7 @@ const createVolumeType = async ( {
     try {
         
         const sqlCreateVolumeType = `
-                INSERT INTO dbo.tbl_volume_types
+                INSERT INTO tbl_volume_types
                         (
                              vlm_code	
                             ,vlm_description	
@@ -96,22 +89,15 @@ const createVolumeType = async ( {
                         )
                 VALUES
                         (
-                             @vlmCode
-                            ,@vlmDescription
-                            ,@vlmStatus
+                             $1
+                            ,$2
+                            ,$3
                         )
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
+        const result = await pool.query(sqlCreateVolumeType, [vlmCode, vlmDescription, vlmStatus]);
         
-                            .input('vlmCode',           sql.VarChar,  vlmCode )
-                            .input('vlmDescription',    sql.VarChar,  vlmDescription )
-                            .input('vlmStatus',         sql.VarChar,  vlmStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateVolumeType);
-        
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -140,16 +126,12 @@ const updateVolumeType = async( params, vlmId ) => {
         const sqlUpdateVolumeType= `
         UPDATE tbl_volume_types
            SET ${columnSet}
-         WHERE vlm_id = @vlmId
+         WHERE vlm_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('vlmId',     sql.Int, vlmId )
-                            .query(sqlUpdateVolumeType);
+        const result = await pool.query(sqlUpdateVolumeType, [vlmId]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -164,16 +146,12 @@ const deleteVolumeType = async ( vlmId ) => {
         const sqlDeleteVolumeType = `
         DELETE 
           FROM tbl_volume_types
-         WHERE vlm_id = @vlmId
+         WHERE vlm_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('vlmId',    sql.Int, vlmId )
-                            .query(sqlDeleteVolumeType);
+        const result = await pool.query(sqlDeleteVolumeType, [vlmId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

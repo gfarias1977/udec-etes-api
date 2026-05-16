@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 const ProcessModel = require('./process.model');
 const ProcessLogModel = require('./processLog.model');
@@ -23,72 +23,58 @@ const getAllGapSourceDemandByParameters = async (
     try {
         const sqlGetAllGapSourceDemand = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.gapd_id ASC) AS id
-            ,t1.gapd_id                        AS gapdId                     
-            ,t1.gapd_proc_id				   AS gapdProcId				  
-            ,t1.gapd_proc_code			       AS gapdProcCode			  
-            ,t1.gapd_stdc_year			       AS gapdStdcYear			  
-            ,t1.gapd_stdc_version			   AS gapdStdcVersion			  
-            ,t1.gapd_stdc_academic_year	       AS gapdStdcAcademicYear	  
-            ,t1.gapd_stdc_academic_period	   AS gapdStdcAcademicPeriod	  
-            ,t1.gapd_stdc_org_code		       AS gapdStdcOrgCode	
-            ,t3.org_description			       AS gapdOrgDescription
-            ,t1.gapd_stdc_camp_code		       AS gapdStdcCampCode	
-            ,t4.camp_description			   AS gapdCampDescription
-            ,t1.gapd_stdc_scho_code		       AS gapdStdcSchoCode	
-            ,t6.scho_description               AS gapdschoDescription	
-            ,t1.gapd_stdc_cours_code		   AS gapdStdcCoursCode	
-            ,t7.cours_description              AS gapdCoursDescription
-            ,t1.gapd_stdc_wkt_code		       AS gapdStdcWktCode		  
-            ,t1.gapd_stdc_act_code		       AS gapdStdcActCode	
-            ,t9.act_name                       AS gapdActName
-            ,t1.gapd_stdc_city			       AS gapdStdcCity	
-            ,t1.gapd_stdc_students_qty	       AS gapdStdcStudentsQty	  
-            ,t1.gapd_stdc_act_code_principal   AS gapdStdcActCodePrincipal
-            ,t1.gapd_stdc_course_type		   AS gapdStdcCourseType		  
-        FROM dbo.tbl_gaps_source_demand t1
-        LEFT JOIN dbo.tbl_process       t2 ON t2.proc_id    = t1.gapd_proc_id
-        LEFT JOIN dbo.tbl_organizations t3 ON t3.org_code   = t1.gapd_stdc_org_code
-        LEFT JOIN dbo.tbl_campus        t4 ON t4.camp_code  = t1.gapd_stdc_camp_code and t4.camp_org_code = t1.gapd_stdc_org_code
-        LEFT JOIN dbo.tbl_cities        t5 ON t5.city_code  = t1.gapd_stdc_city 
-        LEFT JOIN dbo.tbl_schools       t6 ON t6.scho_code  = t1.gapd_stdc_scho_code  and t6.scho_org_code  = t1.gapd_stdc_org_code
-        LEFT JOIN dbo.tbl_courses       t7 ON t7.cours_code = t1.gapd_stdc_cours_code and t7.cours_org_code = t1.gapd_stdc_org_code
-        LEFT JOIN dbo.tbl_work_time     t8 ON t8.wkt_code   = t1.gapd_stdc_wkt_code 
-        LEFT JOIN dbo.tbl_activities    t9 ON t9.act_code   = t1.gapd_stdc_act_code        
+            ,t1.gapd_id                        AS "gapdId"                     
+            ,t1.gapd_proc_id				   AS "gapdProcId"				  
+            ,t1.gapd_proc_code			       AS "gapdProcCode"			  
+            ,t1.gapd_stdc_year			       AS "gapdStdcYear"			  
+            ,t1.gapd_stdc_version			   AS "gapdStdcVersion"			  
+            ,t1.gapd_stdc_academic_year	       AS "gapdStdcAcademicYear"	  
+            ,t1.gapd_stdc_academic_period	   AS "gapdStdcAcademicPeriod"	  
+            ,t1.gapd_stdc_org_code		       AS "gapdStdcOrgCode"	
+            ,t3.org_description			       AS "gapdOrgDescription"
+            ,t1.gapd_stdc_camp_code		       AS "gapdStdcCampCode"	
+            ,t4.camp_description			   AS "gapdCampDescription"
+            ,t1.gapd_stdc_scho_code		       AS "gapdStdcSchoCode"	
+            ,t6.scho_description               AS "gapdschoDescription"	
+            ,t1.gapd_stdc_cours_code		   AS "gapdStdcCoursCode"	
+            ,t7.cours_description              AS "gapdCoursDescription"
+            ,t1.gapd_stdc_wkt_code		       AS "gapdStdcWktCode"		  
+            ,t1.gapd_stdc_act_code		       AS "gapdStdcActCode"	
+            ,t9.act_name                       AS "gapdActName"
+            ,t1.gapd_stdc_city			       AS "gapdStdcCity"	
+            ,t1.gapd_stdc_students_qty	       AS "gapdStdcStudentsQty"	  
+            ,t1.gapd_stdc_act_code_principal   AS "gapdStdcActCodePrincipal"
+            ,t1.gapd_stdc_course_type		   AS "gapdStdcCourseType"		  
+        FROM tbl_gaps_source_demand t1
+        LEFT JOIN tbl_process       t2 ON t2.proc_id    = t1.gapd_proc_id
+        LEFT JOIN tbl_organizations t3 ON t3.org_code   = t1.gapd_stdc_org_code
+        LEFT JOIN tbl_campus        t4 ON t4.camp_code  = t1.gapd_stdc_camp_code and t4.camp_org_code = t1.gapd_stdc_org_code
+        LEFT JOIN tbl_cities        t5 ON t5.city_code  = t1.gapd_stdc_city 
+        LEFT JOIN tbl_schools       t6 ON t6.scho_code  = t1.gapd_stdc_scho_code  and t6.scho_org_code  = t1.gapd_stdc_org_code
+        LEFT JOIN tbl_courses       t7 ON t7.cours_code = t1.gapd_stdc_cours_code and t7.cours_org_code = t1.gapd_stdc_org_code
+        LEFT JOIN tbl_work_time     t8 ON t8.wkt_code   = t1.gapd_stdc_wkt_code 
+        LEFT JOIN tbl_activities    t9 ON t9.act_code   = t1.gapd_stdc_act_code        
         WHERE 
-                t1.gapd_proc_id              = @gapdProcId
-            and t1.gapd_proc_code            = COALESCE(@gapdProcCode             , t1.gapd_proc_code)
-            and t1.gapd_stdc_academic_year	 = COALESCE(@gapdStdcAcademicYear     , t1.gapd_stdc_academic_year)		
-            and t1.gapd_stdc_academic_period = COALESCE(@gapdStdcAcademicPeriod   , t1.gapd_stdc_academic_period)		 
-            and t1.gapd_stdc_org_code        = COALESCE(@gapdOrgCode              , t1.gapd_stdc_org_code)
-            and t1.gapd_stdc_camp_code       = COALESCE(@gapdCampCode             , t1.gapd_stdc_camp_code)
-            and t1.gapd_stdc_scho_code       = COALESCE(@gapdSchoCode             , t1.gapd_stdc_scho_code)
-            and t1.gapd_stdc_cours_code      = COALESCE(@gapdCoursCode            , t1.gapd_stdc_cours_code)
-            and t1.gapd_stdc_wkt_code        = COALESCE(@gapdWktCode              , t1.gapd_stdc_wkt_code)
-            and t1.gapd_stdc_act_code        = COALESCE(@gapdActCode              , t1.gapd_stdc_act_code)
-            and t1.gapd_stdc_city            = COALESCE(@gapdCityCode             , t1.gapd_stdc_city)
+                t1.gapd_proc_id              = $1
+            and t1.gapd_proc_code            = COALESCE($2             , t1.gapd_proc_code)
+            and t1.gapd_stdc_academic_year	 = COALESCE($3     , t1.gapd_stdc_academic_year)		
+            and t1.gapd_stdc_academic_period = COALESCE($4   , t1.gapd_stdc_academic_period)		 
+            and t1.gapd_stdc_org_code        = COALESCE($5              , t1.gapd_stdc_org_code)
+            and t1.gapd_stdc_camp_code       = COALESCE($6             , t1.gapd_stdc_camp_code)
+            and t1.gapd_stdc_scho_code       = COALESCE($7             , t1.gapd_stdc_scho_code)
+            and t1.gapd_stdc_cours_code      = COALESCE($8            , t1.gapd_stdc_cours_code)
+            and t1.gapd_stdc_wkt_code        = COALESCE($9              , t1.gapd_stdc_wkt_code)
+            and t1.gapd_stdc_act_code        = COALESCE($10              , t1.gapd_stdc_act_code)
+            and t1.gapd_stdc_city            = COALESCE($11             , t1.gapd_stdc_city)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-            .request()
-            .input('gapdProcId',               sql.BigInt,  gapdProcId)               
-            .input('gapdProcCode',             sql.VarChar, gapdProcCode)           
-            .input('gapdStdcAcademicYear',     sql.BigInt,  gapdStdcAcademicYear)     
-            .input('gapdStdcAcademicPeriod',   sql.BigInt,  gapdStdcAcademicPeriod)   
-            .input('gapdOrgCode',              sql.VarChar, gapdOrgCode)              
-            .input('gapdCampCode',             sql.VarChar, gapdCampCode)                   
-            .input('gapdSchoCode',             sql.VarChar, gapdSchoCode)                     
-            .input('gapdCoursCode',            sql.VarChar, gapdCoursCode)                  
-            .input('gapdWktCode',              sql.VarChar, gapdWktCode)                     
-            .input('gapdActCode',              sql.VarChar, gapdActCode)                  
-            .input('gapdCityCode',             sql.VarChar, gapdCityCode)  
-            .query(sqlGetAllGapSourceDemand);
+        const result = await pool.query(sqlGetAllGapSourceDemand, [gapdProcId, gapdProcCode, gapdStdcAcademicYear, gapdStdcAcademicPeriod, gapdOrgCode, gapdCampCode, gapdSchoCode, gapdCoursCode, gapdWktCode, gapdActCode, gapdCityCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Fuente de Demand encontradas' : 'No se encontraron Fuente de Demand',
-            gapsSourceDemand: result?.recordset
+            message: result?.rows.length > 0 ? 'Fuente de Demand encontradas' : 'No se encontraron Fuente de Demand',
+            gapsSourceDemand: result?.rows
         };
 
     } catch (error) {
@@ -128,121 +114,85 @@ const bulkLoadDemand = async ({
         , procStandard: null
         , procMsg: header.proc_msg
     }
+    const client = await pool.connect();
     try {
+        await client.query('BEGIN');
 
-        const pool = await poolPromise;
-        let table = new sql.Table('tbl_gaps_source_demand');
-        table.create = true;
-
-        //table.columns.add('gapd_id'                    , sql.BigInt,       { nullable: false });
-        table.columns.add('gapd_proc_id'                 , sql.BigInt,       { nullable: false });
-        table.columns.add('gapd_proc_code'               , sql.VarChar(150), { nullable: false });
-        table.columns.add('gapd_stdc_year'               , sql.BigInt,       { nullable: false });
-        table.columns.add('gapd_stdc_version'            , sql.BigInt,       { nullable: false });
-        table.columns.add('gapd_stdc_academic_year'      , sql.BigInt,       { nullable: false });
-        table.columns.add('gapd_stdc_academic_period'    , sql.BigInt,       { nullable: false });
-        table.columns.add('gapd_stdc_org_code'           , sql.VarChar(10),  { nullable: false });
-        table.columns.add('gapd_stdc_camp_code'          , sql.VarChar(4),   { nullable: false });
-        table.columns.add('gapd_stdc_scho_code'          , sql.VarChar(6),   { nullable: false });
-        table.columns.add('gapd_stdc_cours_code'         , sql.VarChar(10),  { nullable: false });
-        table.columns.add('gapd_stdc_wkt_code'           , sql.VarChar(1),   { nullable: false });
-        table.columns.add('gapd_stdc_act_code'           , sql.VarChar(3),   { nullable: false });
-        table.columns.add('gapd_stdc_students_qty'       , sql.BigInt,       { nullable: false });
-        table.columns.add('gapd_stdc_act_code_principal' , sql.VarChar(3),   { nullable: false });
-        table.columns.add('gapd_stdc_course_type'        , sql.VarChar(1),   { nullable: false });
-        table.columns.add('gapd_stdc_city'               , sql.VarChar(20), { nullable: false });
-
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
         // Insertar registro en tabla de procesos.
-        
-        const resultProcess    = await ProcessModel.createProcess(headerProcess);
+        const resultProcess = await ProcessModel.createProcess(headerProcess);
         let log = {
-             proclProcId:resultProcess.procId
-            ,proclLog : "Demand Bulk Load Started at: " + new Date()
-        }
+             proclProcId: resultProcess.procId
+            ,proclLog: "Demand Bulk Load Started at: " + new Date()
+        };
         let resultProcessLog = await ProcessLogModel.createProcessLog(log);
 
         if (!resultProcess || resultProcess.type === 'error') {
             log = {
-                proclProcId:resultProcess.procId
-               ,proclLog : "Demand Bulk Load Error:" + resultProcess.message + " at:" + new Date()
-           }
-            resultProcessLog = await ProcessLogModel.createProcessLog(log);            
+                proclProcId: resultProcess.procId
+               ,proclLog: "Demand Bulk Load Error:" + resultProcess.message + " at:" + new Date()
+            };
+            resultProcessLog = await ProcessLogModel.createProcessLog(log);
             throw new HttpException(500, 'Error interno del servidor');
-
         };
 
-        for (let i = 0; i < data.length; i++) {
-            table.rows.add(
-                // 0,
-                resultProcess.procId,
-                headerProcess.procCode,
-                data[i].gapd_stdc_year,
-                data[i].gapd_stdc_version,
-                data[i].gapd_stdc_academic_year,
-                data[i].gapd_stdc_academic_period,
-                data[i].gapd_stdc_org_code,
-                data[i].gapd_stdc_camp_code,
-                data[i].gapd_stdc_scho_code,
-                data[i].gapd_stdc_cours_code,
-                data[i].gapd_stdc_wkt_code,
-                data[i].gapd_stdc_act_code,
-                data[i].gapd_stdc_students_qty,
-                data[i].gapd_stdc_act_code_principal,
-                data[i].gapd_stdc_course_type,
-                data[i].gapd_stdc_city
-            );
-        }
+        // Bulk Insert de Demand usando unnest
+        const sqlBulkInsert = `
+            INSERT INTO tbl_gaps_source_demand (
+                gapd_proc_id, gapd_proc_code,
+                gapd_stdc_year, gapd_stdc_version, gapd_stdc_academic_year, gapd_stdc_academic_period,
+                gapd_stdc_org_code, gapd_stdc_camp_code, gapd_stdc_scho_code, gapd_stdc_cours_code,
+                gapd_stdc_wkt_code, gapd_stdc_act_code, gapd_stdc_students_qty,
+                gapd_stdc_act_code_principal, gapd_stdc_course_type, gapd_stdc_city
+            )
+            SELECT * FROM unnest(
+                $1::bigint[], $2::text[],
+                $3::bigint[], $4::bigint[], $5::bigint[], $6::bigint[],
+                $7::text[], $8::text[], $9::text[], $10::text[],
+                $11::text[], $12::text[], $13::bigint[],
+                $14::text[], $15::text[], $16::text[]
+            )
+        `;
+        const cols = {
+            gapd_proc_id:                 data.map(() => resultProcess.procId),
+            gapd_proc_code:               data.map(() => headerProcess.procCode),
+            gapd_stdc_year:               data.map(r => r.gapd_stdc_year),
+            gapd_stdc_version:            data.map(r => r.gapd_stdc_version),
+            gapd_stdc_academic_year:      data.map(r => r.gapd_stdc_academic_year),
+            gapd_stdc_academic_period:    data.map(r => r.gapd_stdc_academic_period),
+            gapd_stdc_org_code:           data.map(r => r.gapd_stdc_org_code),
+            gapd_stdc_camp_code:          data.map(r => r.gapd_stdc_camp_code),
+            gapd_stdc_scho_code:          data.map(r => r.gapd_stdc_scho_code),
+            gapd_stdc_cours_code:         data.map(r => r.gapd_stdc_cours_code),
+            gapd_stdc_wkt_code:           data.map(r => r.gapd_stdc_wkt_code),
+            gapd_stdc_act_code:           data.map(r => r.gapd_stdc_act_code),
+            gapd_stdc_students_qty:       data.map(r => r.gapd_stdc_students_qty),
+            gapd_stdc_act_code_principal: data.map(r => r.gapd_stdc_act_code_principal),
+            gapd_stdc_course_type:        data.map(r => r.gapd_stdc_course_type),
+            gapd_stdc_city:               data.map(r => r.gapd_stdc_city),
+        };
+        const result = await client.query(sqlBulkInsert, Object.values(cols));
 
-        // Bulk Insert de Demand
-        const request = pool.request();
-        /*             request.bulk(table, (err, result) => {
-                        if (err) {
-                            console.error(err);                    
-                            transaction.rollback();
-                            return respuesta = {
-                                type: 'error',
-                                status: 400,
-                                message: err.message,
-                            };                    
-                        } else {
-                            console.log('Success!');
-                            transaction.commit();
-                            console.log(result);
-                            //console.log('Transaction committed successfully.');
-                            return respuesta = {
-                                type: 'ok',
-                                status: 200,
-                                message: {status:"Demand Load Success",
-                                          rows:result.rowsAffected,
-                                          procId:resultProcess.procId,
-                                          procCode:headerProcess.procCode},
-                            };                    
-                        }
-                        
-                    })    */
-        const result = await request.bulk(table);
-        transaction.commit();
+        await client.query('COMMIT');
         console.log(result);
         respuesta = {
             type: 'ok',
             status: 200,
-            message: {status:"Demand Load Success",
-                      rows:result.rowsAffected,
-                      procId:resultProcess.procId,
-                      procCode:headerProcess.procCode},
-        };    
-        
-        log = {
-            proclProcId:resultProcess.procId
-           ,proclLog : "Demand Bulk Load Succes:" + JSON.stringify(respuesta.message) + " at:" + new Date()
-       }
-        resultProcessLog = await ProcessLogModel.createProcessLog(log);           
+            message: {
+                status: "Demand Load Success",
+                rows: result.rowCount,
+                procId: resultProcess.procId,
+                procCode: headerProcess.procCode,
+            },
+        };
 
-        //});
+        log = {
+            proclProcId: resultProcess.procId
+           ,proclLog: "Demand Bulk Load Succes:" + JSON.stringify(respuesta.message) + " at:" + new Date()
+        };
+        resultProcessLog = await ProcessLogModel.createProcessLog(log);
+
     } catch (error) {
-        transaction.rollback();
+        await client.query('ROLLBACK');
         respuesta = {
             type: 'error',
             status: 400,
@@ -250,10 +200,12 @@ const bulkLoadDemand = async ({
         };
 
         log = {
-            proclProcId:resultProcess.procId
-           ,proclLog : "Demand Bulk Load Error: " + error.message + " at:" + new Date()
-       }
-        resultProcessLog = await ProcessLogModel.createProcessLog(log);            
+            proclProcId: resultProcess ? resultProcess.procId : null
+           ,proclLog: "Demand Bulk Load Error: " + error.message + " at:" + new Date()
+        };
+        resultProcessLog = await ProcessLogModel.createProcessLog(log);
+    } finally {
+        client.release();
     };
 
     return respuesta;
@@ -268,16 +220,12 @@ const deleteGapSourceDemand = async (procId) => {
         const sqlDeleteGapSourceDemand = `
         DELETE 
           FROM tbl_gaps_source_demand
-         WHERE gapd_proc_id = @procId
+         WHERE gapd_proc_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-            .request()
-            .input('procId', sql.Numeric, procId)
-            .query(sqlDeleteGapSourceDemand);
+        const result = await pool.query(sqlDeleteGapSourceDemand, [procId]);
 
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {
@@ -292,22 +240,19 @@ const getAllDemandPeriods = async() => {
     try {
         const sqlDemandPeriods = `
             SELECT DISTINCT 
-                [gapd_stdc_academic_year]           AS gapdStdcAcademicYear
-                ,[gapd_stdc_academic_period]        AS gapdStdcAcademicPeriod
-                ,CONCAT([gapd_stdc_academic_year] , '-' , [gapd_stdc_academic_period]) AS gapdStdcDemandPeriod
-            FROM [dbo].[tbl_gaps_source_demand]
+                [gapd_stdc_academic_year]           AS "gapdStdcAcademicYear"
+                ,[gapd_stdc_academic_period]        AS "gapdStdcAcademicPeriod"
+                ,CONCAT([gapd_stdc_academic_year] , '-' , [gapd_stdc_academic_period]) AS "gapdStdcDemandPeriod"
+            FROM tbl_gaps_source_demand
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlDemandPeriods);
+        const result = await pool.query(sqlDemandPeriods);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Periodos de la Demanda encontrados' : 'No se encontraron Periodos de la Demanda',
-            demandPeriods: result?.recordset
+            message: result?.rows.length > 0 ? 'Periodos de la Demanda encontrados' : 'No se encontraron Periodos de la Demanda',
+            demandPeriods: result?.rows
         };
 
     } catch (error) {

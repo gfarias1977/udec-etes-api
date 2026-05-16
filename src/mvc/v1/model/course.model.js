@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const courseExists = async ( coursCode ) => {
@@ -7,26 +7,22 @@ const courseExists = async ( coursCode ) => {
     let respuesta;
     try {
         const sqlCourseExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Carrera ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_courses t1
-                    WHERE t1.cours_code      =   @coursCode
+                    WHERE t1.cours_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('coursCode',  sql.VarChar, coursCode )
-                            .query(sqlCourseExists);
+        const result = await pool.query(sqlCourseExists, [coursCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,37 +43,34 @@ const getAllCourses = async() => {
     try {
         const sqlGetAllCourses = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.cours_code ASC) AS id 
-                ,t1.cours_code                 AS coursCode
-                ,t1.cours_org_code             AS coursOrgCode
-                ,t2.org_description            AS orgDescription
-                ,t1.cours_scho_code            AS coursSchoCode
-                ,t3.scho_description           AS schoDescription
-                ,t1.cours_short_description    AS coursShortDescription
-                ,t1.cours_description          AS coursDescription
-                ,t1.cours_type                 AS coursType
-                ,t1.cours_method               AS coursMethod
-                ,t1.cours_duration             AS coursDuration
-                ,t1.cours_modality             AS coursModality
-                ,t1.cours_elearning            AS coursElearning
-                ,t1.cours_clinical_field       AS coursClinicalField
-                ,t1.cours_creation_date        AS coursCreationDate
-                ,t1.cours_status               AS coursStatus
-            FROM dbo.tbl_courses t1
-            left join [dbo].[tbl_organizations] t2 on t1.cours_org_code  = t2.org_code
-            left join [dbo].[tbl_schools]       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
+                ,t1.cours_code                 AS "coursCode"
+                ,t1.cours_org_code             AS "coursOrgCode"
+                ,t2.org_description            AS "orgDescription"
+                ,t1.cours_scho_code            AS "coursSchoCode"
+                ,t3.scho_description           AS "schoDescription"
+                ,t1.cours_short_description    AS "coursShortDescription"
+                ,t1.cours_description          AS "coursDescription"
+                ,t1.cours_type                 AS "coursType"
+                ,t1.cours_method               AS "coursMethod"
+                ,t1.cours_duration             AS "coursDuration"
+                ,t1.cours_modality             AS "coursModality"
+                ,t1.cours_elearning            AS "coursElearning"
+                ,t1.cours_clinical_field       AS "coursClinicalField"
+                ,t1.cours_creation_date        AS "coursCreationDate"
+                ,t1.cours_status               AS "coursStatus"
+            FROM tbl_courses t1
+            left join tbl_organizations t2 on t1.cours_org_code  = t2.org_code
+            left join tbl_schools       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
             order by t1.cours_description 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllCourses);
+        const result = await pool.query(sqlGetAllCourses);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Carreras encontrados' : 'No se encontraron Carreras',
-            courses: result?.recordset
+            message: result?.rows.length > 0 ? 'Carreras encontrados' : 'No se encontraron Carreras',
+            courses: result?.rows
         };
 
     } catch (error) {
@@ -98,43 +91,38 @@ const getAllCoursesByOrgCodeAndSchoCode = async(orgCode, schoCode) => {
     try {
         const sqlGetAllCourses = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.cours_code ASC) AS id 
-                ,t1.cours_code                 AS coursCode
-                ,t1.cours_org_code             AS coursOrgCode
-				,t2.org_description            AS orgDescription
-                ,t1.cours_scho_code            AS coursSchoCode
-				,t3.scho_description           AS schoDescription
-                ,t1.cours_short_description    AS coursShortDescription
-                ,t1.cours_description          AS coursDescription
-                ,t1.cours_type                 AS coursType
-                ,t1.cours_method               AS coursMethod
-                ,t1.cours_duration             AS coursDuration
-                ,t1.cours_modality             AS coursModality
-                ,t1.cours_elearning            AS coursElearning
-                ,t1.cours_clinical_field       AS coursClinicalField
-                ,t1.cours_creation_date        AS coursCreationDate
-                ,'[' + t1.cours_code  + '] ' + t1.cours_description as coursOptionLabel
-                ,t1.cours_status               AS coursStatus
-            FROM dbo.tbl_courses t1
-			left join [dbo].[tbl_organizations] t2 on t1.cours_org_code  = t2.org_code
-			left join [dbo].[tbl_schools]       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
-            WHERE t1.cours_org_code  = @orgCode
-              AND t1.cours_scho_code = @schoCode
+                ,t1.cours_code                 AS "coursCode"
+                ,t1.cours_org_code             AS "coursOrgCode"
+				,t2.org_description            AS "orgDescription"
+                ,t1.cours_scho_code            AS "coursSchoCode"
+				,t3.scho_description           AS "schoDescription"
+                ,t1.cours_short_description    AS "coursShortDescription"
+                ,t1.cours_description          AS "coursDescription"
+                ,t1.cours_type                 AS "coursType"
+                ,t1.cours_method               AS "coursMethod"
+                ,t1.cours_duration             AS "coursDuration"
+                ,t1.cours_modality             AS "coursModality"
+                ,t1.cours_elearning            AS "coursElearning"
+                ,t1.cours_clinical_field       AS "coursClinicalField"
+                ,t1.cours_creation_date        AS "coursCreationDate"
+                ,'[' || t1.cours_code || '] ' || t1.cours_description as coursOptionLabel
+                ,t1.cours_status               AS "coursStatus"
+            FROM tbl_courses t1
+			left join tbl_organizations t2 on t1.cours_org_code  = t2.org_code
+			left join tbl_schools       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
+            WHERE t1.cours_org_code  = $1
+              AND t1.cours_scho_code = $2
               AND t1.cours_status = 'S'                
             order by t1.cours_description 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode',  sql.VarChar, orgCode )
-                            .input('schoCode', sql.VarChar, schoCode )
-                            .query(sqlGetAllCourses);
+        const result = await pool.query(sqlGetAllCourses, [orgCode, schoCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Carreras encontrados' : 'No se encontraron Carreras',
-            courses: result?.recordset
+            message: result?.rows.length > 0 ? 'Carreras encontrados' : 'No se encontraron Carreras',
+            courses: result?.rows
         };
 
     } catch (error) {
@@ -156,37 +144,33 @@ const getCourseById = async( coursCode) => {
         
         const sqlGetCourseByID = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.cours_code ASC) AS id 
-                ,t1.cours_code                 AS coursCode
-                ,t1.cours_org_code             AS coursOrgCode
-                ,t2.org_description            AS orgDescription
-                ,t1.cours_scho_code            AS coursSchoCode
-                ,t3.scho_description           AS schoDescription
-                ,t1.cours_short_description    AS coursShortDescription
-                ,t1.cours_description          AS coursDescription
-                ,t1.cours_type                 AS coursType
-                ,t1.cours_method               AS coursMethod
-                ,t1.cours_duration             AS coursDuration
-                ,t1.cours_modality             AS coursModality
-                ,t1.cours_elearning            AS coursElearning
-                ,t1.cours_clinical_field       AS coursClinicalField
-                ,t1.cours_creation_date        AS coursCreationDate
-                ,t1.cours_status               AS coursStatus
-            FROM dbo.tbl_courses t1
-            left join [dbo].[tbl_organizations] t2 on t1.cours_org_code  = t2.org_code
-            left join [dbo].[tbl_schools]       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
-            WHERE t1.cours_code = @coursCode
+                ,t1.cours_code                 AS "coursCode"
+                ,t1.cours_org_code             AS "coursOrgCode"
+                ,t2.org_description            AS "orgDescription"
+                ,t1.cours_scho_code            AS "coursSchoCode"
+                ,t3.scho_description           AS "schoDescription"
+                ,t1.cours_short_description    AS "coursShortDescription"
+                ,t1.cours_description          AS "coursDescription"
+                ,t1.cours_type                 AS "coursType"
+                ,t1.cours_method               AS "coursMethod"
+                ,t1.cours_duration             AS "coursDuration"
+                ,t1.cours_modality             AS "coursModality"
+                ,t1.cours_elearning            AS "coursElearning"
+                ,t1.cours_clinical_field       AS "coursClinicalField"
+                ,t1.cours_creation_date        AS "coursCreationDate"
+                ,t1.cours_status               AS "coursStatus"
+            FROM tbl_courses t1
+            left join tbl_organizations t2 on t1.cours_org_code  = t2.org_code
+            left join tbl_schools       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
+            WHERE t1.cours_code = $1
             and t1.cours_status = 'S'
             order by t1.cours_description 
   
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('coursCode', sql.VarChar, coursCode )                            
-                            .query(sqlGetCourseByID);
+        const result = await pool.query(sqlGetCourseByID, [coursCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -200,41 +184,37 @@ const getAllCourseByName = async(coursDescription) => {
     const qryFindCourses = 
     `
     SELECT ROW_NUMBER() OVER(ORDER BY  t1.cours_code ASC) AS id 
-            ,t1.cours_code                 AS coursCode
-            ,t1.cours_org_code             AS coursOrgCode
-            ,t2.org_description            AS orgDescription
-            ,t1.cours_scho_code            AS coursSchoCode
-            ,t3.scho_description           AS schoDescription
-            ,t1.cours_short_description    AS coursShortDescription
-            ,t1.cours_description          AS coursDescription
-            ,t1.cours_type                 AS coursType
-            ,t1.cours_method               AS coursMethod
-            ,t1.cours_duration             AS coursDuration
-            ,t1.cours_modality             AS coursModality
-            ,t1.cours_elearning            AS coursElearning
-            ,t1.cours_clinical_field       AS coursClinicalField
-            ,t1.cours_creation_date        AS coursCreationDate
-            ,t1.cours_status               AS coursStatus
-        FROM dbo.tbl_courses t1
-        left join [dbo].[tbl_organizations] t2 on t1.cours_org_code  = t2.org_code
-        left join [dbo].[tbl_schools]       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
-        WHERE UPPER(t1.cours_description)  LIKE UPPER(CONCAT('%',@coursDescription,'%'))
+            ,t1.cours_code                 AS "coursCode"
+            ,t1.cours_org_code             AS "coursOrgCode"
+            ,t2.org_description            AS "orgDescription"
+            ,t1.cours_scho_code            AS "coursSchoCode"
+            ,t3.scho_description           AS "schoDescription"
+            ,t1.cours_short_description    AS "coursShortDescription"
+            ,t1.cours_description          AS "coursDescription"
+            ,t1.cours_type                 AS "coursType"
+            ,t1.cours_method               AS "coursMethod"
+            ,t1.cours_duration             AS "coursDuration"
+            ,t1.cours_modality             AS "coursModality"
+            ,t1.cours_elearning            AS "coursElearning"
+            ,t1.cours_clinical_field       AS "coursClinicalField"
+            ,t1.cours_creation_date        AS "coursCreationDate"
+            ,t1.cours_status               AS "coursStatus"
+        FROM tbl_courses t1
+        left join tbl_organizations t2 on t1.cours_org_code  = t2.org_code
+        left join tbl_schools       t3 on t1.cours_scho_code = t3.scho_code and t1.cours_org_code  = t3.scho_org_code
+        WHERE UPPER(t1.cours_description)  LIKE UPPER(CONCAT('%',$1,'%'))
            AND t1.cours_status = 'S'
         order by t1.cours_description 
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('coursDescription', sql.VarChar, coursDescription )
-                            .query(qryFindCourses);
+        const result = await pool.query(qryFindCourses, [coursDescription]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Carreras encontradas' : 'No se encontraron Carreras',
-            courses: result?.recordset
+            message: result?.rows.length > 0 ? 'Carreras encontradas' : 'No se encontraron Carreras',
+            courses: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -265,7 +245,7 @@ const createCourse = async ( {
     try {
         
         const sqlCreateCourse = `
-            INSERT INTO dbo.tbl_courses
+            INSERT INTO tbl_courses
                     (cours_code
                     ,cours_org_code
                     ,cours_scho_code
@@ -280,39 +260,24 @@ const createCourse = async ( {
                     ,cours_creation_date
                     ,cours_status)
             VALUES
-                    (@coursCode
-                    ,@coursOrgCode
-                    ,@coursSchoCode
-                    ,@coursShortDescription
-                    ,@coursDescription
-                    ,@coursType
-                    ,@coursMethod
-                    ,@coursDuration
-                    ,@coursModality
-                    ,@coursElearning
-                    ,@coursClinicalField
-                    ,DBO.fncGetDate()
-                    ,@coursStatus)
+                    ($1
+                    ,$2
+                    ,$3
+                    ,$4
+                    ,$5
+                    ,$6
+                    ,$7
+                    ,$8
+                    ,$9
+                    ,$10
+                    ,$11
+                    ,NOW()
+                    ,$12)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('coursCode',             sql.VarChar,  coursCode )             
-                            .input('coursOrgCode',          sql.VarChar,  coursOrgCode )
-                            .input('coursSchoCode',         sql.VarChar,  coursSchoCode )
-                            .input('coursShortDescription', sql.VarChar,  coursShortDescription )
-                            .input('coursDescription',      sql.VarChar,  coursDescription )
-                            .input('coursType',             sql.VarChar,  coursType )
-                            .input('coursMethod',           sql.VarChar,  coursMethod )
-                            .input('coursDuration',         sql.VarChar,  coursDuration )
-                            .input('coursModality',         sql.VarChar,  coursModality )
-                            .input('coursElearning',        sql.VarChar,  coursElearning )
-                            .input('coursClinicalField',    sql.VarChar,  coursClinicalField )
-                            .input('coursStatus',           sql.VarChar,  coursStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateCourse);
+        const result = await pool.query(sqlCreateCourse, [coursCode, coursOrgCode, coursSchoCode, coursShortDescription, coursDescription, coursType, coursMethod, coursDuration, coursModality, coursElearning, coursClinicalField, coursStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -341,16 +306,12 @@ const updateCourse = async( params, coursCode ) => {
         const sqlUpdateCourse= `
         UPDATE tbl_courses
            SET ${columnSet}
-         WHERE cours_code = @coursCode
+         WHERE cours_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('coursCode',     sql.VarChar, coursCode )
-                            .query(sqlUpdateCourse);
+        const result = await pool.query(sqlUpdateCourse, [coursCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -365,16 +326,12 @@ const deleteCourse = async ( coursCode ) => {
         const sqlDeleteCourse = `
         DELETE 
           FROM tbl_courses
-         WHERE cours_code = @coursCode
+         WHERE cours_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('coursCode',     sql.VarChar, coursCode )
-                            .query(sqlDeleteCourse);
+        const result = await pool.query(sqlDeleteCourse, [coursCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

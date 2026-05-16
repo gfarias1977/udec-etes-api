@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const cityExists = async ( cityCode) => {
@@ -7,26 +7,22 @@ const cityExists = async ( cityCode) => {
     let respuesta;
     try {
         const sqlCityExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Ciudad ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_cities t1
-                    WHERE t1.city_code      =   @cityCode
+                    WHERE t1.city_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cityCode',  sql.VarChar, cityCode )
-                            .query(sqlCityExists);
+        const result = await pool.query(sqlCityExists, [cityCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,23 +43,20 @@ const getAllCities = async() => {
     try {
         const sqlGetAllCities = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.city_code ASC) AS id  
-            ,t1.city_code	     AS cityCode
-            ,t1.city_name	 AS cityName
-            ,t1.city_status		 AS cityStatus
-        FROM dbo.tbl_cities t1
+            ,t1.city_code	     AS "cityCode"
+            ,t1.city_name	 AS "cityName"
+            ,t1.city_status		 AS "cityStatus"
+        FROM tbl_cities t1
         ORDER BY t1.city_name
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllCities);
+        const result = await pool.query(sqlGetAllCities);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Ciudades encontradas' : 'No se encontraron Ciudades',
-            cities: result?.recordset
+            message: result?.rows.length > 0 ? 'Ciudades encontradas' : 'No se encontraron Ciudades',
+            cities: result?.rows
         };
 
     } catch (error) {
@@ -86,25 +79,21 @@ const getAllCitiesBibliographicCenter = async(orgCode) => {
     try {
         const sqlGetAllCities = `
             SELECT DISTINCT [cabi_city_code] cityCode
-            FROM [dbo].[tbl_campus_bibligraphic_center]
-            JOIN [dbo].[tbl_campus] ON [camp_code] = [cabi_camp_code]
+            FROM tbl_campus_bibligraphic_center
+            JOIN tbl_campus ON [camp_code] = [cabi_camp_code]
             WHERE
-                [camp_org_code] = coalesce(@orgCode,'')
+                [camp_org_code] = coalesce($1,'')
             AND [cabi_status] = 'S'
             ORDER BY [cabi_city_code] ASC;
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode',  sql.VarChar, orgCode )                            
-                            .query(sqlGetAllCities);
+        const result = await pool.query(sqlGetAllCities, [orgCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Ciudades centros bibliografico encontradas' : 'No se encontraron Ciudades centros bibliografico ',
-            cities: result?.recordset
+            message: result?.rows.length > 0 ? 'Ciudades centros bibliografico encontradas' : 'No se encontraron Ciudades centros bibliografico ',
+            cities: result?.rows
         };
 
     } catch (error) {
@@ -129,7 +118,7 @@ const createCity = async ( {
     try {
         
         const sqlCreateCity = `
-                INSERT INTO dbo.tbl_cities
+                INSERT INTO tbl_cities
                         (
                              city_code	
                             ,city_name	
@@ -137,21 +126,15 @@ const createCity = async ( {
                         )
                 VALUES
                         (
-                             @cityCode
-                            ,@cityName
-                            ,@cityStatus
+                             $1
+                            ,$2
+                            ,$3
                         )
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cityCode',           sql.VarChar,  cityCode )
-                            .input('cityName',           sql.VarChar,  cityName )
-                            .input('cityStatus',         sql.VarChar,  cityStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateCity);
+        const result = await pool.query(sqlCreateCity, [cityCode, cityName, cityStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -180,16 +163,12 @@ const updateCity = async( params, cityCode ) => {
         const sqlUpdateCity= `
         UPDATE tbl_cities
            SET ${columnSet}
-         WHERE city_code = @cityCode
+         WHERE city_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cityCode',     sql.VarChar, cityCode )
-                            .query(sqlUpdateCity);
+        const result = await pool.query(sqlUpdateCity, [cityCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -204,16 +183,12 @@ const deleteCity = async ( cityCode ) => {
         const sqlDeleteCity = `
         DELETE 
           FROM tbl_cities
-         WHERE city_code = @cityCode
+         WHERE city_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('cityCode',    sql.VarChar, cityCode )
-                            .query(sqlDeleteCity);
+        const result = await pool.query(sqlDeleteCity, [cityCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

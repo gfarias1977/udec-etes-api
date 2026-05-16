@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const organizationExists = async ( orgCode ) => {
@@ -7,26 +7,22 @@ const organizationExists = async ( orgCode ) => {
     let respuesta;
     try {
         const sqlOrganizationExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Organizacion de compra ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_organizations t1
-                    WHERE t1.org_code     =  @orgCode
+                    WHERE t1.org_code     =  $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode',  sql.VarChar, orgCode )
-                            .query(sqlOrganizationExists);
+        const result = await pool.query(sqlOrganizationExists, [orgCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,32 +43,29 @@ const getAllOrganizations = async() => {
     try {
         const sqlGetAllOrganizations = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.org_code ASC) AS id
-                ,t1.org_code             AS orgCode                 
-                ,t1.org_description      AS orgDescription    
-                ,t1.org_tax_payer_id     AS orgTaxPayerId        
-                ,t1.org_address          AS orgAddress        
-                ,t1.org_department       AS orgDepartment      
-                ,t1.org_city             AS orgCity                 
-                ,t1.org_erp_code         AS orgErpCode        
-                ,t1.org_uo               AS orgUo              
-                ,t1.org_legal_entity_id  AS orgLegalEntityId  
-                ,t1.org_ledger_id        AS orgLedgerId        
-                ,t1.org_creation_date    AS orgCreationDate   
-                ,t1.org_status           AS orgStatus        
-            FROM dbo.tbl_organizations t1
+                ,t1.org_code             AS "orgCode"                 
+                ,t1.org_description      AS "orgDescription"    
+                ,t1.org_tax_payer_id     AS "orgTaxPayerId"        
+                ,t1.org_address          AS "orgAddress"        
+                ,t1.org_department       AS "orgDepartment"      
+                ,t1.org_city             AS "orgCity"                 
+                ,t1.org_erp_code         AS "orgErpCode"        
+                ,t1.org_uo               AS "orgUo"              
+                ,t1.org_legal_entity_id  AS "orgLegalEntityId"  
+                ,t1.org_ledger_id        AS "orgLedgerId"        
+                ,t1.org_creation_date    AS "orgCreationDate"   
+                ,t1.org_status           AS "orgStatus"        
+            FROM tbl_organizations t1
             ORDER BY t1.org_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllOrganizations);
+        const result = await pool.query(sqlGetAllOrganizations);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Organizaciones encontradas' : 'No se encontraron Organizaciones',
-            organizations: result?.recordset
+            message: result?.rows.length > 0 ? 'Organizaciones encontradas' : 'No se encontraron Organizaciones',
+            organizations: result?.rows
         };
 
     } catch (error) {
@@ -94,30 +87,26 @@ const getOrganizationById = async( orgCode ) => {
         
         const sqlGetOrganizationByID = `
                 SELECT ROW_NUMBER() OVER(ORDER BY  t1.org_code ASC) AS id
-                    ,t1.org_code            AS orgCode              
-                    ,t1.org_description     AS orgDescription    
-                    ,t1.org_tax_payer_id    AS orgTaxPayerId   
-                    ,t1.org_address         AS orgAddress        
-                    ,t1.org_department      AS orgDepartment     
-                    ,t1.org_city            AS orgCity           
-                    ,t1.org_erp_code        AS orgErpCode       
-                    ,t1.org_uo              AS orgUo              
-                    ,t1.org_legal_entity_id AS orgLegalEntityId
-                    ,t1.org_ledger_id       AS orgLedgerId      
-                    ,t1.org_creation_date   AS orgCreationDate   
-                    ,t1.org_status          AS orgStatus                    
-                FROM dbo.tbl_organizations t1
-                WHERE t1.org_code = @orgCode
+                    ,t1.org_code            AS "orgCode"              
+                    ,t1.org_description     AS "orgDescription"    
+                    ,t1.org_tax_payer_id    AS "orgTaxPayerId"   
+                    ,t1.org_address         AS "orgAddress"        
+                    ,t1.org_department      AS "orgDepartment"     
+                    ,t1.org_city            AS "orgCity"           
+                    ,t1.org_erp_code        AS "orgErpCode"       
+                    ,t1.org_uo              AS "orgUo"              
+                    ,t1.org_legal_entity_id AS "orgLegalEntityId"
+                    ,t1.org_ledger_id       AS "orgLedgerId"      
+                    ,t1.org_creation_date   AS "orgCreationDate"   
+                    ,t1.org_status          AS "orgStatus"                    
+                FROM tbl_organizations t1
+                WHERE t1.org_code = $1
                 ORDER BY t1.org_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode', sql.VarChar, orgCode )                            
-                            .query(sqlGetOrganizationByID);
+        const result = await pool.query(sqlGetOrganizationByID, [orgCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -131,36 +120,32 @@ const getAllOrganizationsByName = async(orgDescription) => {
     const qryFindOrganizations = 
     `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.org_code ASC) AS id
-            ,t1.org_code              AS orgCode           
-            ,t1.org_description       AS orgDescription    
-            ,t1.org_tax_payer_id      AS orgTaxPayerId   
-            ,t1.org_address           AS orgAddress        
-            ,t1.org_department        AS orgDepartment     
-            ,t1.org_city              AS orgCity           
-            ,t1.org_erp_code          AS orgErpCode       
-            ,t1.org_uo                AS orgUo             
-            ,t1.org_legal_entity_id   AS orgLegalEntityId
-            ,t1.org_ledger_id         AS orgLedgerId      
-            ,t1.org_creation_date     AS orgCreationDate  
-            ,t1.org_status            AS orgStatus         
-        FROM dbo.tbl_organizations t1
-        WHERE UPPER(t1.org_description)  LIKE UPPER(CONCAT('%',@orgDescription,'%'))
+            ,t1.org_code              AS "orgCode"           
+            ,t1.org_description       AS "orgDescription"    
+            ,t1.org_tax_payer_id      AS "orgTaxPayerId"   
+            ,t1.org_address           AS "orgAddress"        
+            ,t1.org_department        AS "orgDepartment"     
+            ,t1.org_city              AS "orgCity"           
+            ,t1.org_erp_code          AS "orgErpCode"       
+            ,t1.org_uo                AS "orgUo"             
+            ,t1.org_legal_entity_id   AS "orgLegalEntityId"
+            ,t1.org_ledger_id         AS "orgLedgerId"      
+            ,t1.org_creation_date     AS "orgCreationDate"  
+            ,t1.org_status            AS "orgStatus"         
+        FROM tbl_organizations t1
+        WHERE UPPER(t1.org_description)  LIKE UPPER(CONCAT('%',$1,'%'))
         ORDER BY t1.org_code
 
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgDescription', sql.VarChar, orgDescription )
-                            .query(qryFindOrganizations);
+        const result = await pool.query(qryFindOrganizations, [orgDescription]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Organizaciones encontradas' : 'No se encontraron Organizaciones',
-            organizations: result?.recordset
+            message: result?.rows.length > 0 ? 'Organizaciones encontradas' : 'No se encontraron Organizaciones',
+            organizations: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -180,40 +165,36 @@ const getAllOrganizationsByUserId = async(orgUserId) => {
         const sqlGetAllOrganizations = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t0.org_code ASC) AS id, t0.* FROM (
                 SELECT DISTINCT 
-                    t1.org_code                AS orgCode           
-                    ,t1.org_description        AS orgDescription   
-                    ,t1.org_tax_payer_id       AS orgTaxPayerId   
-                    ,t1.org_address            AS orgAddress       
-                    ,t1.org_department         AS orgDepartment     
-                    ,t1.org_city               AS orgCity           
-                    ,t1.org_erp_code           AS orgErpCode         
-                    ,t1.org_uo                 AS orgUo                 
-                    ,t1.org_legal_entity_id    AS orgLegalEntityId   
-                    ,t1.org_ledger_id          AS orgLedgerId          
-                    ,t1.org_creation_date      AS orgCreationDate       
-                    ,t1.org_status             AS orgStatus             
-                FROM dbo.tbl_organizations t1
-                LEFT JOIN dbo.tbl_organizations_business_units t2 ON t2.ogbu_org_code = t1.org_code
+                    t1.org_code                AS "orgCode"           
+                    ,t1.org_description        AS "orgDescription"   
+                    ,t1.org_tax_payer_id       AS "orgTaxPayerId"   
+                    ,t1.org_address            AS "orgAddress"       
+                    ,t1.org_department         AS "orgDepartment"     
+                    ,t1.org_city               AS "orgCity"           
+                    ,t1.org_erp_code           AS "orgErpCode"         
+                    ,t1.org_uo                 AS "orgUo"                 
+                    ,t1.org_legal_entity_id    AS "orgLegalEntityId"   
+                    ,t1.org_ledger_id          AS "orgLedgerId"          
+                    ,t1.org_creation_date      AS "orgCreationDate"       
+                    ,t1.org_status             AS "orgStatus"             
+                FROM tbl_organizations t1
+                LEFT JOIN tbl_organizations_business_units t2 ON t2.ogbu_org_code = t1.org_code
                 WHERE t2.ogbu_bu_code in 
                 (
-                    SELECT usbu_bu_code FROM dbo.tbl_users_business_units
-                    WHERE usbu_user_id = @orgUserId
+                    SELECT usbu_bu_code FROM tbl_users_business_units
+                    WHERE usbu_user_id = $1
                     and usbu_status = 'S'
                 )
             ) t0  ORDER BY t0.org_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgUserId', sql.Int, orgUserId )
-                            .query(sqlGetAllOrganizations);
+        const result = await pool.query(sqlGetAllOrganizations, [orgUserId]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Organizaciones encontradas' : 'No se encontraron Organizaciones',
-            organizations: result?.recordset
+            message: result?.rows.length > 0 ? 'Organizaciones encontradas' : 'No se encontraron Organizaciones',
+            organizations: result?.rows
         };
 
     } catch (error) {
@@ -247,7 +228,7 @@ const createOrganization = async ( {
     try {
         
         const sqlCreateOrganization = `
-                INSERT INTO [dbo].[tbl_organizations]
+                INSERT INTO tbl_organizations
                         ([org_code]
                         ,[org_description]
                         ,[org_tax_payer_id]
@@ -261,37 +242,23 @@ const createOrganization = async ( {
                         ,[org_creation_date]
                         ,[org_status])
                 VALUES
-                        (@orgCode
-                        ,@orgDescription
-                        ,@orgTaxPayerId
-                        ,@orgAddress
-                        ,@orgDepartment
-                        ,@orgCity
-                        ,@orgErpCode
-                        ,@orgUo
-                        ,@orgLegalEntityId
-                        ,@orgLedgerId
-                        ,DBO.fncGetDate()
-                        ,@orgStatus)      
+                        ($1
+                        ,$2
+                        ,$3
+                        ,$4
+                        ,$5
+                        ,$6
+                        ,$7
+                        ,$8
+                        ,$9
+                        ,$10
+                        ,NOW()
+                        ,$11)      
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode',          sql.VarChar,orgCode)        
-                            .input('orgDescription',   sql.VarChar,orgDescription)  
-                            .input('orgTaxPayerId',    sql.VarChar,orgTaxPayerId)   
-                            .input('orgAddress',       sql.VarChar,orgAddress)    
-                            .input('orgDepartment',    sql.VarChar,orgDepartment)
-                            .input('orgCity',          sql.VarChar,orgCity)    
-                            .input('orgErpCode',       sql.VarChar,orgErpCode)      
-                            .input('orgUo',            sql.VarChar,orgUo)       
-                            .input('orgLegalEntityId', sql.VarChar,orgLegalEntityId)
-                            .input('orgLedgerId',      sql.VarChar,orgLedgerId) 
-                            .input('orgStatus',      sql.VarChar,orgStatus)      
-                            .query(sqlCreateOrganization);
+        const result = await pool.query(sqlCreateOrganization, [orgCode, orgDescription, orgTaxPayerId, orgAddress, orgDepartment, orgCity, orgErpCode, orgUo, orgLegalEntityId, orgLedgerId, orgStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -320,16 +287,12 @@ const updateOrganization = async( params, orgCode ) => {
         const sqlUpdateOrganization = `
         UPDATE tbl_organizations
            SET ${columnSet}
-         WHERE org_code = @orgCode
+         WHERE org_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode', sql.VarChar, orgCode )
-                            .query(sqlUpdateOrganization);
+        const result = await pool.query(sqlUpdateOrganization, [orgCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -344,16 +307,12 @@ const deleteOrganization = async ( orgCode ) => {
         const sqlDeleteoOganization = `
         DELETE 
           FROM tbl_organizations
-         WHERE org_code = @orgCode
+         WHERE org_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode',     sql.VarChar, orgCode )
-                            .query(sqlDeleteoOganization);
+        const result = await pool.query(sqlDeleteoOganization, [orgCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

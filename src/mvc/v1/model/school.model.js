@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const schoolExists = async ( schoCode, schoOrgCode ) => {
@@ -7,28 +7,23 @@ const schoolExists = async ( schoCode, schoOrgCode ) => {
     let respuesta;
     try {
         const sqlSchoolExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Unidad Academica ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_schools t1
-                    WHERE t1.scho_code     =  @schoCode
-                      AND t1.scho_org_code = @schoOrgCode
+                    WHERE t1.scho_code     =  $1
+                      AND t1.scho_org_code = $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('schoCode',  sql.VarChar, schoCode )
-                            .input('schoOrgCode',  sql.VarChar, schoOrgCode )
-                            .query(sqlSchoolExists);
+        const result = await pool.query(sqlSchoolExists, [schoCode, schoOrgCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -49,34 +44,31 @@ const getAllSchools = async() => {
     try {
         const sqlGetAllSchools = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.scho_code ASC) AS id
-            ,t1.scho_code              AS schoCode             
-            ,t1.scho_org_code          AS schoOrgCode
-            ,t2.org_description        AS schoOrgDescription
-            ,t1.scho_cacc_code         AS schoCaccCode
-            ,t3.cacc_description       AS schoCaccDescription
-            ,t1.scho_bu_code           AS schoBuCode
-            ,t4.bu_name                AS schoBuName
-            ,t1.scho_description       AS schoDescription
-            ,t1.scho_registration_date AS schoRegistrationDate
-            ,t1.scho_status            AS schoStatus
-            ,CONCAT(t1.scho_code, '-' ,t1.scho_description)   AS schoOptionLabel
-        FROM dbo.tbl_schools t1
-        left join dbo.tbl_organizations  t2 on t2.org_code   = t1.scho_org_code 
-        left join dbo.tbl_charge_account t3 on t3.cacc_code  = t1.scho_cacc_code and t3.cacc_org_code = t1.scho_org_code 
-        left join dbo.tbl_business_units t4 on t4.bu_code    = t1.scho_bu_code
+            ,t1.scho_code              AS "schoCode"             
+            ,t1.scho_org_code          AS "schoOrgCode"
+            ,t2.org_description        AS "schoOrgDescription"
+            ,t1.scho_cacc_code         AS "schoCaccCode"
+            ,t3.cacc_description       AS "schoCaccDescription"
+            ,t1.scho_bu_code           AS "schoBuCode"
+            ,t4.bu_name                AS "schoBuName"
+            ,t1.scho_description       AS "schoDescription"
+            ,t1.scho_registration_date AS "schoRegistrationDate"
+            ,t1.scho_status            AS "schoStatus"
+            ,CONCAT(t1.scho_code, '-' ,t1.scho_description)   AS "schoOptionLabel"
+        FROM tbl_schools t1
+        left join tbl_organizations  t2 on t2.org_code   = t1.scho_org_code 
+        left join tbl_charge_account t3 on t3.cacc_code  = t1.scho_cacc_code and t3.cacc_org_code = t1.scho_org_code 
+        left join tbl_business_units t4 on t4.bu_code    = t1.scho_bu_code
         ORDER BY t1.scho_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllSchools);
+        const result = await pool.query(sqlGetAllSchools);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Unidades Academicas encontradas' : 'No se encontraron Unidades Academicas',
-            schools: result?.recordset
+            message: result?.rows.length > 0 ? 'Unidades Academicas encontradas' : 'No se encontraron Unidades Academicas',
+            schools: result?.rows
         };
 
     } catch (error) {
@@ -98,27 +90,22 @@ const getSchoolById = async( schoCode, schoOrgCode ) => {
         
         const sqlGetSchoolByID = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.scho_code ASC) AS id
-                ,t1.scho_code              AS schoCode             
-                ,t1.scho_org_code          AS schoOrgCode
-                ,t1.scho_cacc_code         AS schoCaccCode
-                ,t1.scho_bu_code           AS schoBuCode
-                ,t1.scho_description       AS schoDescription
-                ,t1.scho_registration_date AS schoRegistrationDate
-                ,t1.scho_status            AS schoStatus
-            FROM dbo.tbl_schools t1
-            WHERE t1.scho_code = @schoCode
-              AND t1.scho_org_code = @schoOrgCode
+                ,t1.scho_code              AS "schoCode"             
+                ,t1.scho_org_code          AS "schoOrgCode"
+                ,t1.scho_cacc_code         AS "schoCaccCode"
+                ,t1.scho_bu_code           AS "schoBuCode"
+                ,t1.scho_description       AS "schoDescription"
+                ,t1.scho_registration_date AS "schoRegistrationDate"
+                ,t1.scho_status            AS "schoStatus"
+            FROM tbl_schools t1
+            WHERE t1.scho_code = $1
+              AND t1.scho_org_code = $2
             ORDER BY t1.scho_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('schoCode', sql.VarChar, schoCode )                            
-                            .input('schoOrgCode', sql.VarChar, schoOrgCode )                            
-                            .query(sqlGetSchoolByID);
+        const result = await pool.query(sqlGetSchoolByID, [schoCode, schoOrgCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -133,31 +120,27 @@ const getAllSchoolsByName = async(schoDescription) => {
     `
 
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.scho_code ASC) AS id
-            ,t1.scho_code              AS schoCode             
-            ,t1.scho_org_code          AS schoOrgCode
-            ,t1.scho_cacc_code         AS schoCaccCode
-            ,t1.scho_bu_code           AS schoBuCode
-            ,t1.scho_description       AS schoDescription
-            ,t1.scho_registration_date AS schoRegistrationDate
-            ,t1.scho_status            AS schoStatus
-        FROM dbo.tbl_schools t1
-        WHERE UPPER(t1.scho_description)  LIKE UPPER(CONCAT('%',@schoDescription,'%'))
+            ,t1.scho_code              AS "schoCode"             
+            ,t1.scho_org_code          AS "schoOrgCode"
+            ,t1.scho_cacc_code         AS "schoCaccCode"
+            ,t1.scho_bu_code           AS "schoBuCode"
+            ,t1.scho_description       AS "schoDescription"
+            ,t1.scho_registration_date AS "schoRegistrationDate"
+            ,t1.scho_status            AS "schoStatus"
+        FROM tbl_schools t1
+        WHERE UPPER(t1.scho_description)  LIKE UPPER(CONCAT('%',$1,'%'))
         AND t1.scho_status = 'S'
         ORDER BY t1.scho_code    
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('schoDescription', sql.VarChar, schoDescription )
-                            .query(qryFindSchools);
+        const result = await pool.query(qryFindSchools, [schoDescription]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Unidades Academicas encontradas' : 'No se encontraron Unidades Academicas',
-            schools: result?.recordset
+            message: result?.rows.length > 0 ? 'Unidades Academicas encontradas' : 'No se encontraron Unidades Academicas',
+            schools: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -176,33 +159,28 @@ const getAllSchoolsByOrgCode = async(schoOrgCode, schoCaccCode) => {
     try {
         const sqlGetAllSchools = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.scho_code ASC) AS id
-                ,t1.scho_code              AS schoCode             
-                ,t1.scho_org_code          AS schoOrgCode
-                ,t1.scho_cacc_code         AS schoCaccCode
-                ,t1.scho_bu_code           AS schoBuCode
-                ,t1.scho_description       AS schoDescription
-                ,t1.scho_registration_date AS schoRegistrationDate
-                ,t1.scho_status            AS schoStatus
-            FROM dbo.tbl_schools t1
-            JOIN dbo.tbl_charge_account t2 ON t1.scho_cacc_code = t2.cacc_code
-            WHERE t1.scho_org_code = @schoOrgCode
-            AND UPPER(t2.cacc_code) LIKE UPPER(CONCAT(@schoCaccCode,'%')) 
+                ,t1.scho_code              AS "schoCode"             
+                ,t1.scho_org_code          AS "schoOrgCode"
+                ,t1.scho_cacc_code         AS "schoCaccCode"
+                ,t1.scho_bu_code           AS "schoBuCode"
+                ,t1.scho_description       AS "schoDescription"
+                ,t1.scho_registration_date AS "schoRegistrationDate"
+                ,t1.scho_status            AS "schoStatus"
+            FROM tbl_schools t1
+            JOIN tbl_charge_account t2 ON t1.scho_cacc_code = t2.cacc_code
+            WHERE t1.scho_org_code = $1
+            AND UPPER(t2.cacc_code) LIKE UPPER(CONCAT($2,'%')) 
             AND t1.scho_status = 'S'
             ORDER BY t1.scho_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('schoOrgCode',  sql.VarChar, schoOrgCode )
-                            .input('schoCaccCode', sql.VarChar, schoCaccCode )
-                            .query(sqlGetAllSchools);
+        const result = await pool.query(sqlGetAllSchools, [schoOrgCode, schoCaccCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Unidades Academicas encontradas' : 'No se encontraron Unidades Academicas',
-            schools: result?.recordset
+            message: result?.rows.length > 0 ? 'Unidades Academicas encontradas' : 'No se encontraron Unidades Academicas',
+            schools: result?.rows
         };
 
     } catch (error) {
@@ -230,7 +208,7 @@ const createSchool = async ( {
     try {
         
         const sqlCreateSchool = `
-                INSERT INTO dbo.tbl_schools
+                INSERT INTO tbl_schools
                         (scho_code
                         ,scho_org_code
                         ,scho_cacc_code
@@ -239,27 +217,18 @@ const createSchool = async ( {
                         ,scho_registration_date
                         ,scho_status)
                 VALUES
-                        (@schoCode
-                        ,@schoOrgCode
-                        ,@schoCaccCode
-                        ,@schoBuCode
-                        ,@schoDescription
-                        ,DBO.fncGetDate()
-                        ,@schoStatus)    
+                        ($1
+                        ,$2
+                        ,$3
+                        ,$4
+                        ,$5
+                        ,NOW()
+                        ,$6)    
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('schoCode',         sql.VarChar,schoCode)        
-                            .input('schoOrgCode',      sql.VarChar,schoOrgCode)  
-                            .input('schoCaccCode',     sql.VarChar,schoCaccCode)   
-                            .input('schoBuCode',       sql.VarChar,schoBuCode)    
-                            .input('schoDescription',  sql.VarChar,schoDescription)
-                            .input('schoStatus',       sql.VarChar,schoStatus)    
-                            .query(sqlCreateSchool);
+        const result = await pool.query(sqlCreateSchool, [schoCode, schoOrgCode, schoCaccCode, schoBuCode, schoDescription, schoStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -288,18 +257,13 @@ const updateSchool = async( params, schoCode, schoOrgCode) => {
         const sqlUpdateSchool = `
         UPDATE tbl_schools
            SET ${columnSet}
-         WHERE scho_code     = @schoCode
-           AND scho_org_code = @schoOrgCode
+         WHERE scho_code     = $1
+           AND scho_org_code = $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('schoCode', sql.VarChar, schoCode )
-                            .input('schoOrgCode', sql.VarChar, schoOrgCode )   
-                            .query(sqlUpdateSchool);
+        const result = await pool.query(sqlUpdateSchool, [schoCode, schoOrgCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -314,18 +278,13 @@ const deleteSchool = async ( schoCode , schoOrgCode) => {
         const sqlDeleteSchool = `
         DELETE 
           FROM tbl_schools
-         WHERE scho_code     = @schoCode
-           AND scho_org_code = @schoOrgCode 
+         WHERE scho_code     = $1
+           AND scho_org_code = $2 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('schoCode',     sql.VarChar, schoCode )
-                            .input('schoOrgCode',  sql.VarChar, schoOrgCode )
-                            .query(sqlDeleteSchool);
+        const result = await pool.query(sqlDeleteSchool, [schoCode, schoOrgCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

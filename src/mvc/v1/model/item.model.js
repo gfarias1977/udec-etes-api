@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const itemExist = async ( itemName, itemPurcCode ) => {
@@ -7,28 +7,23 @@ const itemExist = async ( itemName, itemPurcCode ) => {
     let respuesta;
     try {
         const sqlItemxist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Clase de Articulo ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_items t1
-                    WHERE t1.item_name           =   @itemName
-                    and t1.item_purc_code      =   @itemPurcCode
+                    WHERE t1.item_name           =   $1
+                    and t1.item_purc_code      =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itemName',  sql.VarChar, itemName )
-                            .input('itemPurcCode',  sql.VarChar, itemPurcCode )
-                            .query(sqlItemxist);
+        const result = await pool.query(sqlItemxist, [itemName, itemPurcCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -51,57 +46,51 @@ const getAllItems = async(orgCode, purcCode, famCode, subFamCode) => {
     try {
         const sqlGetAllItems = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS id    
-                ,t1.item_code              AS itemCode
-                ,t1.item_purc_code         AS itemPurcCode        
-                ,t3.purc_name              AS itemPurcName             
-                ,t1.item_description       AS itemDescription      
-                ,t1.item_name              AS itemName             
-                ,t1.item_itmc_code         AS itemItmcSubFamCode        
-                ,t2.itmc_name              AS itemItmcSubFamName   
-                ,t4.itmc_code              AS itemItmcFamCode        
-                ,t4.itmc_name              AS itemItmcFamName  				
-                ,t1.item_renewal_cycle     AS itemRenewalCycle    
-                ,t1.item_maintenance_cycle AS itemMaintenanceCycle
-                ,t1.item_currency_code     AS itemCurrencyCode    
-                ,t1.item_unit_value        AS itemUnitValue 
-                ,t1.item_isbn              AS itemIsbn                          
-                ,t1.item_attribute_01      AS itemAttribute01     
-                ,t1.item_value_01          AS itemValue01         
-                ,t1.item_attribute_02      AS itemAttribute02     
-                ,t1.item_value_02          AS itemValue02         
-                ,t1.item_attribute_03      AS itemAttribute03     
-                ,t1.item_value_03          AS itemValue03         
-                ,t1.item_attribute_04      AS itemAttribute04     
-                ,t1.item_value_04          AS itemValue04         
-                ,t1.item_creation_date     AS itemCreationDate    
-                ,t1.item_status            AS itemStatus  
-                ,'[' + CAST( t1.item_code as varchar(max))  + '] ' + t1.item_name + ' [' + t4.itmc_name + '][' + t2.itmc_name  + ']' as itemOptionLabel
-            FROM dbo.tbl_items t1, 
-                dbo.tbl_item_categories t2,
-                dbo.tbl_purchase_areas t3,
-                dbo.tbl_item_categories t4
+                ,t1.item_code              AS "itemCode"
+                ,t1.item_purc_code         AS "itemPurcCode"        
+                ,t3.purc_name              AS "itemPurcName"             
+                ,t1.item_description       AS "itemDescription"      
+                ,t1.item_name              AS "itemName"             
+                ,t1.item_itmc_code         AS "itemItmcSubFamCode"        
+                ,t2.itmc_name              AS "itemItmcSubFamName"   
+                ,t4.itmc_code              AS "itemItmcFamCode"        
+                ,t4.itmc_name              AS "itemItmcFamName"  				
+                ,t1.item_renewal_cycle     AS "itemRenewalCycle"    
+                ,t1.item_maintenance_cycle AS "itemMaintenanceCycle"
+                ,t1.item_currency_code     AS "itemCurrencyCode"    
+                ,t1.item_unit_value        AS "itemUnitValue" 
+                ,t1.item_isbn              AS "itemIsbn"                          
+                ,t1.item_attribute_01      AS "itemAttribute01"     
+                ,t1.item_value_01          AS "itemValue01"         
+                ,t1.item_attribute_02      AS "itemAttribute02"     
+                ,t1.item_value_02          AS "itemValue02"         
+                ,t1.item_attribute_03      AS "itemAttribute03"     
+                ,t1.item_value_03          AS "itemValue03"         
+                ,t1.item_attribute_04      AS "itemAttribute04"     
+                ,t1.item_value_04          AS "itemValue04"         
+                ,t1.item_creation_date     AS "itemCreationDate"    
+                ,t1.item_status            AS "itemStatus"  
+                ,'[' || CAST( t1.item_code as varchar(max))  + '] ' || t1.item_name || ' [' || t4.itmc_name || '][' || t2.itmc_name || ']' as itemOptionLabel
+            FROM tbl_items t1, 
+                tbl_item_categories t2,
+                tbl_purchase_areas t3,
+                tbl_item_categories t4
             WHERE t1.item_itmc_code = t2.itmc_code
             and t1.item_purc_code   = t3.purc_code
             and t2.itmc_parent_code = t4.itmc_code
-            and t1.item_purc_code   = coalesce(@purcCode,t1.item_purc_code)
-            and t1.item_itmc_code   = coalesce(@subFamCode,t1.item_itmc_code) 
-            and t4.itmc_code        = coalesce(@famCode,t4.itmc_code) 
+            and t1.item_purc_code   = coalesce($1,t1.item_purc_code)
+            and t1.item_itmc_code   = coalesce($2,t1.item_itmc_code) 
+            and t4.itmc_code        = coalesce($3,t4.itmc_code) 
             order by t1.item_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode',    sql.VarChar, purcCode )                            
-                            .input('subFamCode',  sql.Int,     subFamCode )
-                            .input('famCode',     sql.Int,     famCode )
-                            .query(sqlGetAllItems);
+        const result = await pool.query(sqlGetAllItems, [purcCode, subFamCode, famCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Clases de Articulos encontrados' : 'No se encontraron Clases de Articulos',
-            items: result?.recordset
+            message: result?.rows.length > 0 ? 'Clases de Articulos encontrados' : 'No se encontraron Clases de Articulos',
+            items: result?.rows
         };
 
     } catch (error) {
@@ -124,50 +113,45 @@ const getItemById = async( itemCode, itemPurcCode) => {
         const sqlGetItemsByID = `
 
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS id    
-                ,t1.item_code              AS itemCode
-                ,t1.item_purc_code         AS itemPurcCode        
-                ,t3.purc_name              AS itemPurcName             
-                ,t1.item_description       AS itemDescription      
-                ,t1.item_name              AS itemName             
-                ,t1.item_itmc_code         AS itemItmcSubFamCode        
-                ,t2.itmc_name              AS itmcSubFamName   
-                ,t4.itmc_code              AS itemItmcFamCode        
-                ,t4.itmc_name              AS itmcFamName  				
-                ,t1.item_renewal_cycle     AS itemRenewalCycle    
-                ,t1.item_maintenance_cycle AS itemMaintenanceCycle
-                ,t1.item_currency_code     AS itemCurrencyCode    
-                ,t1.item_unit_value        AS itemUnitValue    
-                ,t1.item_isbn              AS itemIsbn                       
-                ,t1.item_attribute_01      AS itemAttribute01     
-                ,t1.item_value_01          AS itemValue01         
-                ,t1.item_attribute_02      AS itemAttribute02     
-                ,t1.item_value_02          AS itemValue02         
-                ,t1.item_attribute_03      AS itemAttribute03     
-                ,t1.item_value_03          AS itemValue03         
-                ,t1.item_attribute_04      AS itemAttribute04     
-                ,t1.item_value_04          AS itemValue04         
-                ,t1.item_creation_date     AS itemCreationDate    
-                ,t1.item_status            AS itemStatus  
-            FROM dbo.tbl_items t1, 
-                dbo.tbl_item_categories t2,
-                dbo.tbl_purchase_areas t3,
-                dbo.tbl_item_categories t4
+                ,t1.item_code              AS "itemCode"
+                ,t1.item_purc_code         AS "itemPurcCode"        
+                ,t3.purc_name              AS "itemPurcName"             
+                ,t1.item_description       AS "itemDescription"      
+                ,t1.item_name              AS "itemName"             
+                ,t1.item_itmc_code         AS "itemItmcSubFamCode"        
+                ,t2.itmc_name              AS "itmcSubFamName"   
+                ,t4.itmc_code              AS "itemItmcFamCode"        
+                ,t4.itmc_name              AS "itmcFamName"  				
+                ,t1.item_renewal_cycle     AS "itemRenewalCycle"    
+                ,t1.item_maintenance_cycle AS "itemMaintenanceCycle"
+                ,t1.item_currency_code     AS "itemCurrencyCode"    
+                ,t1.item_unit_value        AS "itemUnitValue"    
+                ,t1.item_isbn              AS "itemIsbn"                       
+                ,t1.item_attribute_01      AS "itemAttribute01"     
+                ,t1.item_value_01          AS "itemValue01"         
+                ,t1.item_attribute_02      AS "itemAttribute02"     
+                ,t1.item_value_02          AS "itemValue02"         
+                ,t1.item_attribute_03      AS "itemAttribute03"     
+                ,t1.item_value_03          AS "itemValue03"         
+                ,t1.item_attribute_04      AS "itemAttribute04"     
+                ,t1.item_value_04          AS "itemValue04"         
+                ,t1.item_creation_date     AS "itemCreationDate"    
+                ,t1.item_status            AS "itemStatus"  
+            FROM tbl_items t1, 
+                tbl_item_categories t2,
+                tbl_purchase_areas t3,
+                tbl_item_categories t4
             WHERE t1.item_itmc_code = t2.itmc_code
             and t1.item_purc_code = t3.purc_code
             and t2.itmc_parent_code = t4.itmc_code
-            and t1.item_code = @itemCode
-            and t1.item_purc_code = @itemPurcCode
+            and t1.item_code = $1
+            and t1.item_purc_code = $2
             order by t1.item_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itemCode',      sql.VarChar, itemCode )                            
-                            .input('itemPurcCode',  sql.VarChar, itemPurcCode )
-                            .query(sqlGetItemsByID);
+        const result = await pool.query(sqlGetItemsByID, [itemCode, itemPurcCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -181,54 +165,50 @@ const getAllItemsByName = async(itemName) => {
     const qryFindItems = 
     `               
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS id    
-            ,t1.item_code              AS itemCode
-            ,t1.item_purc_code         AS itemPurcCode        
-            ,t3.purc_name              AS itemPurcName             
-            ,t1.item_description       AS itemDescription      
-            ,t1.item_name              AS itemName             
-            ,t1.item_itmc_code         AS itemItmcSubFamCode        
-            ,t2.itmc_name              AS itmcSubFamName   
-            ,t4.itmc_code              AS itemItmcFamCode        
-            ,t4.itmc_name              AS itmcFamName  				
-            ,t1.item_renewal_cycle     AS itemRenewalCycle    
-            ,t1.item_maintenance_cycle AS itemMaintenanceCycle
-            ,t1.item_currency_code     AS itemCurrencyCode    
-            ,t1.item_unit_value        AS itemUnitValue  
-            ,t1.item_isbn              AS itemIsbn                     
-            ,t1.item_attribute_01      AS itemAttribute01     
-            ,t1.item_value_01          AS itemValue01         
-            ,t1.item_attribute_02      AS itemAttribute02     
-            ,t1.item_value_02          AS itemValue02         
-            ,t1.item_attribute_03      AS itemAttribute03     
-            ,t1.item_value_03          AS itemValue03         
-            ,t1.item_attribute_04      AS itemAttribute04     
-            ,t1.item_value_04          AS itemValue04         
-            ,t1.item_creation_date     AS itemCreationDate    
-            ,t1.item_status            AS itemStatus  
-        FROM dbo.tbl_items t1, 
-            dbo.tbl_item_categories t2,
-            dbo.tbl_purchase_areas t3,
-            dbo.tbl_item_categories t4
+            ,t1.item_code              AS "itemCode"
+            ,t1.item_purc_code         AS "itemPurcCode"        
+            ,t3.purc_name              AS "itemPurcName"             
+            ,t1.item_description       AS "itemDescription"      
+            ,t1.item_name              AS "itemName"             
+            ,t1.item_itmc_code         AS "itemItmcSubFamCode"        
+            ,t2.itmc_name              AS "itmcSubFamName"   
+            ,t4.itmc_code              AS "itemItmcFamCode"        
+            ,t4.itmc_name              AS "itmcFamName"  				
+            ,t1.item_renewal_cycle     AS "itemRenewalCycle"    
+            ,t1.item_maintenance_cycle AS "itemMaintenanceCycle"
+            ,t1.item_currency_code     AS "itemCurrencyCode"    
+            ,t1.item_unit_value        AS "itemUnitValue"  
+            ,t1.item_isbn              AS "itemIsbn"                     
+            ,t1.item_attribute_01      AS "itemAttribute01"     
+            ,t1.item_value_01          AS "itemValue01"         
+            ,t1.item_attribute_02      AS "itemAttribute02"     
+            ,t1.item_value_02          AS "itemValue02"         
+            ,t1.item_attribute_03      AS "itemAttribute03"     
+            ,t1.item_value_03          AS "itemValue03"         
+            ,t1.item_attribute_04      AS "itemAttribute04"     
+            ,t1.item_value_04          AS "itemValue04"         
+            ,t1.item_creation_date     AS "itemCreationDate"    
+            ,t1.item_status            AS "itemStatus"  
+        FROM tbl_items t1, 
+            tbl_item_categories t2,
+            tbl_purchase_areas t3,
+            tbl_item_categories t4
         WHERE t1.item_itmc_code = t2.itmc_code
         and t1.item_purc_code = t3.purc_code
         and t2.itmc_parent_code = t4.itmc_code
-        and UPPER(t1.item_name)  LIKE UPPER(CONCAT('%',@itemName,'%'))
+        and UPPER(t1.item_name)  LIKE UPPER(CONCAT('%',$1,'%'))
         and t1.item_status = 'S'  
         order by t1.item_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itemName', sql.VarChar, itemName )
-                            .query(qryFindItems);
+        const result = await pool.query(qryFindItems, [itemName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Clases de Articulos encontradas' : 'No se encontraron Clases de Articulos',
-            items: result?.recordset
+            message: result?.rows.length > 0 ? 'Clases de Articulos encontradas' : 'No se encontraron Clases de Articulos',
+            items: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -247,54 +227,49 @@ const getAllItemsByParentCode = async(itemPurcCode,itemItmcCode) => {
     try {
         const sqlGetAllItemsByParentCode = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS id    
-                ,t1.item_code              AS itemCode
-                ,t1.item_purc_code         AS itemPurcCode        
-                ,t3.purc_name              AS itemPurcName             
-                ,t1.item_description       AS itemDescription      
-                ,t1.item_name              AS itemName             
-                ,t1.item_itmc_code         AS itemItmcSubFamCode        
-                ,t2.itmc_name              AS itmcSubFamName   
-                ,t4.itmc_code              AS itemItmcFamCode        
-                ,t4.itmc_name              AS itmcFamName  				
-                ,t1.item_renewal_cycle     AS itemRenewalCycle    
-                ,t1.item_maintenance_cycle AS itemMaintenanceCycle
-                ,t1.item_currency_code     AS itemCurrencyCode    
-                ,t1.item_unit_value        AS itemUnitValue  
-                ,t1.item_isbn              AS itemIsbn      
-                ,t1.item_attribute_01      AS itemAttribute01     
-                ,t1.item_value_01          AS itemValue01         
-                ,t1.item_attribute_02      AS itemAttribute02     
-                ,t1.item_value_02          AS itemValue02         
-                ,t1.item_attribute_03      AS itemAttribute03     
-                ,t1.item_value_03          AS itemValue03         
-                ,t1.item_attribute_04      AS itemAttribute04     
-                ,t1.item_value_04          AS itemValue04         
-                ,t1.item_creation_date     AS itemCreationDate    
-                ,t1.item_status            AS itemStatus  
-            FROM dbo.tbl_items t1, 
-                dbo.tbl_item_categories t2,
-                dbo.tbl_purchase_areas t3,
-                dbo.tbl_item_categories t4
+                ,t1.item_code              AS "itemCode"
+                ,t1.item_purc_code         AS "itemPurcCode"        
+                ,t3.purc_name              AS "itemPurcName"             
+                ,t1.item_description       AS "itemDescription"      
+                ,t1.item_name              AS "itemName"             
+                ,t1.item_itmc_code         AS "itemItmcSubFamCode"        
+                ,t2.itmc_name              AS "itmcSubFamName"   
+                ,t4.itmc_code              AS "itemItmcFamCode"        
+                ,t4.itmc_name              AS "itmcFamName"  				
+                ,t1.item_renewal_cycle     AS "itemRenewalCycle"    
+                ,t1.item_maintenance_cycle AS "itemMaintenanceCycle"
+                ,t1.item_currency_code     AS "itemCurrencyCode"    
+                ,t1.item_unit_value        AS "itemUnitValue"  
+                ,t1.item_isbn              AS "itemIsbn"      
+                ,t1.item_attribute_01      AS "itemAttribute01"     
+                ,t1.item_value_01          AS "itemValue01"         
+                ,t1.item_attribute_02      AS "itemAttribute02"     
+                ,t1.item_value_02          AS "itemValue02"         
+                ,t1.item_attribute_03      AS "itemAttribute03"     
+                ,t1.item_value_03          AS "itemValue03"         
+                ,t1.item_attribute_04      AS "itemAttribute04"     
+                ,t1.item_value_04          AS "itemValue04"         
+                ,t1.item_creation_date     AS "itemCreationDate"    
+                ,t1.item_status            AS "itemStatus"  
+            FROM tbl_items t1, 
+                tbl_item_categories t2,
+                tbl_purchase_areas t3,
+                tbl_item_categories t4
             WHERE t1.item_itmc_code = t2.itmc_code
             and t1.item_purc_code = t3.purc_code
             and t2.itmc_parent_code = t4.itmc_code
-            and t1.item_purc_code = @itemPurcCode
-            and t1.item_itmc_code = @itemItmcCode
+            and t1.item_purc_code = $1
+            and t1.item_itmc_code = $2
             order by t1.item_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itemPurcCode',   sql.VarChar, itemPurcCode )
-                            .input('itemItmcCode',   sql.VarChar, itemItmcCode )
-                            .query(sqlGetAllItemsByParentCode);
+        const result = await pool.query(sqlGetAllItemsByParentCode, [itemPurcCode, itemItmcCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Clases de Articulos encontrados' : 'No se encontraron Clases de Articulos',
-            items: result?.recordset
+            message: result?.rows.length > 0 ? 'Clases de Articulos encontrados' : 'No se encontraron Clases de Articulos',
+            items: result?.rows
         };
 
     } catch (error) {
@@ -357,53 +332,32 @@ const createItem = async ( {
                     ,item_status)
             VALUES
                     ( 
-                     @itemPurcCode
-                    ,@itemDescription
-                    ,@itemName
-                    ,@itemItmcCode
-                    ,@itemRenewalCycle 
-                    ,@itemMaintenanceCycle 
-                    ,@itemCurrencyCode
-                    ,@itemUnitValue
+                     $1
+                    ,$2
+                    ,$3
+                    ,$4
+                    ,$5 
+                    ,$6 
+                    ,$7
+                    ,$8
                     ,@itemIsbn
-                    ,@itemAttribute01
-                    ,@itemValue01
-                    ,@itemAttribute02
-                    ,@itemValue02
-                    ,@itemAttribute03
-                    ,@itemValue03
-                    ,@itemAttribute04
-                    ,@itemValue04
-                    ,DBO.fncGetDate()
-                    ,@itemStatus)
+                    ,$10
+                    ,$11
+                    ,$12
+                    ,$13
+                    ,$14
+                    ,$15
+                    ,$16
+                    ,$17
+                    ,NOW()
+                    ,$18)
                     SELECT SCOPE_IDENTITY() as itemCode   
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itemPurcCode',        sql.VarChar,  itemPurcCode)
-                            .input('itemDescription',     sql.VarChar,  itemDescription)
-                            .input('itemName',            sql.VarChar,  itemName)
-                            .input('itemItmcCode',        sql.Int,      itemItmcCode)
-                            .input('itemRenewalCycle',    sql.Int,      itemRenewalCycle)
-                            .input('itemMaintenanceCycle',sql.Int,      itemMaintenanceCycle)
-                            .input('itemCurrencyCode',    sql.VarChar,  itemCurrencyCode)
-                            .input('itemUnitValue',       sql.Decimal,  itemUnitValue)
-                            .input('itemIsbn     ',       sql.VarChar,  itemIsbn)
-                            .input('itemAttribute01',     sql.VarChar,  itemAttribute01)
-                            .input('itemValue01',         sql.VarChar,  itemValue01)
-                            .input('itemAttribute02',     sql.VarChar,  itemAttribute02)
-                            .input('itemValue02',         sql.VarChar,  itemValue02)
-                            .input('itemAttribute03',     sql.VarChar,  itemAttribute03)
-                            .input('itemValue03',         sql.VarChar,  itemValue03)
-                            .input('itemAttribute04',     sql.VarChar,  itemAttribute04)
-                            .input('itemValue04',         sql.VarChar,  itemValue04)
-                            .input('itemStatus',          sql.VarChar,  itemStatus)
-                            .query(sqlCreateItem);
+        const result = await pool.query(sqlCreateItem, [itemPurcCode, itemDescription, itemName, itemItmcCode, itemRenewalCycle, itemMaintenanceCycle, itemCurrencyCode, itemUnitValue, itemIsbn, itemAttribute01, itemValue01, itemAttribute02, itemValue02, itemAttribute03, itemValue03, itemAttribute04, itemValue04, itemStatus]);
         
-        const affectedRows = result.rowsAffected[0];
-        const itemCode = result.recordset[0].itemCode;
+        const affectedRows = result.rowCount;
+        const itemCode = result.rows[0].itemCode;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -433,16 +387,12 @@ const updateItem = async( params, itemCode ) => {
         const sqlUpdateItem= `
         UPDATE tbl_items
            SET ${columnSet}
-         WHERE item_code = @itemCode
+         WHERE item_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itemCode',         sql.Int, itemCode )
-                            .query(sqlUpdateItem);
+        const result = await pool.query(sqlUpdateItem, [itemCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -457,16 +407,12 @@ const deleteItem = async ( itemCode ) => {
         const sqlDeleteItem = `
         DELETE 
           FROM tbl_items
-        WHERE item_code = @itemCode
+        WHERE item_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itemCode',         sql.Int, itemCode )
-                            .query(sqlDeleteItem);
+        const result = await pool.query(sqlDeleteItem, [itemCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

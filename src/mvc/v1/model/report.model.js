@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const performance = process.env.REPORT_PERFORMANCE || 100;
@@ -40,37 +40,29 @@ const getReportStandardAppliedToMayor = async(buCode, stdCode, purcCode, stdVers
                 t3.[cours_org_code] = t2.major_org_code
                 and t3.cours_code = t1.[prgd_cours_code]
             JOIN [tbl_standards_courses] t4 ON
-                t4.[stdc_bu_code] LIKE @buCode
-            AND t4.[stdc_std_code] LIKE @stdCode
-            AND t4.[stdc_purc_code] = @purcCode 
-            AND t4.[stdc_std_version] = @stdVersion
+                t4.[stdc_bu_code] LIKE $1
+            AND t4.[stdc_std_code] LIKE $2
+            AND t4.[stdc_purc_code] = $3 
+            AND t4.[stdc_std_version] = $4
             AND t4.[stdc_cours_code] = t3.[cours_code]
             AND t4.[stdc_org_code] = t3.[cours_org_code]
             LEFT JOIN [tbl_items] t5 ON
                t5.[item_code] = t4.[stdc_item_code]
-            LEFT JOIN [dbo].[tbl_rooms_layout] t6 ON
+            LEFT JOIN tbl_rooms_layout t6 ON
                 t6.[rlay_code] = t4.[stdc_rlay_code]
          WHERE
-                t1.[prgd_major_code] LIKE @majorCode
+                t1.[prgd_major_code] LIKE $5
             AND t1.[prgd_level] > 0
            -- AND t4.[stdc_status] = 'S'
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode',      sql.VarChar, buCode    )
-                            .input('stdCode',     sql.VarChar, stdCode   )
-                            .input('purcCode',    sql.VarChar, purcCode  )
-                            .input('stdVersion',  sql.Int, stdVersion    )
-                            .input('majorCode',   sql.VarChar, majorCode )
-                            .query(sqlGetStandardAppliedToMayor);
+        const result = await pool.query(sqlGetStandardAppliedToMayor, [buCode, stdCode, purcCode, stdVersion, majorCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Reporte generado con exito' : 'No se encontraron registros',
-            report:  result?.recordset
+            message: result?.rows.length > 0 ? 'Reporte generado con exito' : 'No se encontraron registros',
+            report:  result?.rows
         };
 
     } catch (error) {
@@ -114,7 +106,7 @@ const getReportStandardByRoomLayout = async(buCode, stdCode, purcCode, stdVersio
                 t3.[item_unit_value] * 
                 CASE 
                 WHEN t1.[stdc_performance] = 0 THEN 0
-                ELSE ROUND (@performance / t1.[stdc_performance], 1)
+                ELSE ROUND ($6 / t1.[stdc_performance], 1)
                 END inversion,
                 t1.[stdc_maintenance_cicle] as stdcMaintenanceCicle,
                 t1.[stdc_renewal_cicle] as stdcRenewalCicle
@@ -126,31 +118,22 @@ const getReportStandardByRoomLayout = async(buCode, stdCode, purcCode, stdVersio
                 LEFT JOIN [tbl_courses] t4
                 ON     t4.[cours_org_code] = t1.[stdc_org_code]
                     AND t4.[cours_code] = t1.[stdc_cours_code]
-        WHERE     t1.[stdc_bu_code] LIKE @buCode
-                AND t1.[stdc_std_code] LIKE @stdCode
-                AND t1.[stdc_std_version] = @stdVersion
-                AND t1.[stdc_rlay_code] LIKE @rlayCode
-                AND t1.[stdc_purc_code] = @purcCode
+        WHERE     t1.[stdc_bu_code] LIKE $1
+                AND t1.[stdc_std_code] LIKE $2
+                AND t1.[stdc_std_version] = $4
+                AND t1.[stdc_rlay_code] LIKE $5
+                AND t1.[stdc_purc_code] = $3
     ORDER BY t1.[stdc_rlay_code], t1.[stdc_item_code], t1.[stdc_cours_code];
 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode',      sql.VarChar, buCode    )
-                            .input('stdCode',     sql.VarChar, stdCode   )
-                            .input('purcCode',    sql.VarChar, purcCode  )
-                            .input('stdVersion',  sql.Int, stdVersion    )
-                            .input('rlayCode',    sql.VarChar, rlayCode  )
-                            .input('performance', sql.Int, performance   )
-                            .query(sqlGetStandardByRoomLayout);
+        const result = await pool.query(sqlGetStandardByRoomLayout, [buCode, stdCode, purcCode, stdVersion, rlayCode, performance]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Reporte generado con exito' : 'No se encontraron registros',
-            report:  result?.recordset
+            message: result?.rows.length > 0 ? 'Reporte generado con exito' : 'No se encontraron registros',
+            report:  result?.rows
         };
 
     } catch (error) {
@@ -176,19 +159,19 @@ const getReportEquipmentByMayor = async(majorCode, progCode, buCode) => {
                t1.[stdc_item_code] stdcItemCode,
                t2.[item_description] itemDescription,
                coalesce(t1.[stdc_performance], 0) stdcPerformance,
-               @students students,
+               $4 students,
                CASE
                   WHEN (t1.[stdc_performance] = 0) OR (t1.[stdc_performance] IS NULL) THEN 0
                   WHEN t3.[rlay_capacity] > 0 THEN ROUND( t3.[rlay_capacity] / t1.[stdc_performance], 0 )
                   ELSE
-                    ROUND(@students / t1.[stdc_performance], 0 )
+                    ROUND($4 / t1.[stdc_performance], 0 )
                END quantity,
                t2.[item_unit_value] itemUnitValue,
                CASE
                  WHEN t1.[stdc_performance] = 0 THEN 0
                   WHEN t3.[rlay_capacity] > 0 THEN t2.[item_unit_value]  * ROUND( t3.[rlay_capacity] / t1.[stdc_performance], 0 )
                  ELSE
-                     t2.[item_unit_value] * ROUND( @students / t1.[stdc_performance], 0 )
+                     t2.[item_unit_value] * ROUND( $4 / t1.[stdc_performance], 0 )
                END inversion,
                t1.[stdc_maintenance_cicle] stdcMaintenanceCicle,
                t1.[stdc_renewal_cicle] stdcRenewalCicle,
@@ -208,17 +191,17 @@ const getReportEquipmentByMayor = async(majorCode, progCode, buCode) => {
                   [tbl_programs_grids] t1
                   JOIN [tbl_majors] t2 ON
                       t2.[major_code] = t1.[prgd_major_code]
-                  LEFT JOIN [dbo].[tbl_courses] t3 ON
+                  LEFT JOIN tbl_courses t3 ON
                       t3.[cours_org_code] = t2.[major_org_code]
                   AND t3.[cours_code] = t1.[prgd_cours_code]
                WHERE
-                      t1.[prgd_major_code] = @majorCode
-                  AND t1.[prgd_prog_code] = @progCode
+                      t1.[prgd_major_code] = $1
+                  AND t1.[prgd_prog_code] = $2
                   AND t1.[prgd_level] > 0
                ) programs_grid
                --LEFT
                JOIN [tbl_standards_courses] t1 ON
-                   t1.[stdc_bu_code] LIKE @buCode
+                   t1.[stdc_bu_code] LIKE $3
                AND t1.[stdc_org_code] = programs_grid.majorOrgCode
                AND t1.[stdc_cours_code] = programs_grid.coursCode
                AND t1.[stdc_status] = 'S'
@@ -235,20 +218,13 @@ const getReportEquipmentByMayor = async(majorCode, progCode, buCode) => {
                t2.[item_code]
                      `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('majorCode',    sql.VarChar, majorCode  )
-                            .input('progCode',     sql.VarChar, progCode   )
-                            .input('buCode',       sql.VarChar, buCode     )
-                            .input('students',     sql.VarChar, students   )
-                            .query(sqlGetEquipmentByMayor);
+        const result = await pool.query(sqlGetEquipmentByMayor, [majorCode, progCode, buCode, students]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Reporte generado con exito' : 'No se encontraron registros',
-            report:  result?.recordset
+            message: result?.rows.length > 0 ? 'Reporte generado con exito' : 'No se encontraron registros',
+            report:  result?.rows
         };
 
     } catch (error) {

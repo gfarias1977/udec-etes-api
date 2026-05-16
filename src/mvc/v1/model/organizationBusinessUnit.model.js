@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const organizationBusinessUnitExist = async (ogbuOrgCode, ogbuBuCode ) => {
@@ -7,28 +7,23 @@ const organizationBusinessUnitExist = async (ogbuOrgCode, ogbuBuCode ) => {
     let respuesta;
     try {
         const sqlOrganizationBusinessUnitExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Organizacion Unidad de Negocio ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_organizations_business_units t1
-                    WHERE t1.ogbu_org_code   =   @ogbuOrgCode
-                    and t1.ogbu_bu_code      =   @ogbuBuCode
+                    WHERE t1.ogbu_org_code   =   $1
+                    and t1.ogbu_bu_code      =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('ogbuOrgCode',    sql.VarChar,ogbuOrgCode )
-                            .input('ogbuBuCode',     sql.VarChar,ogbuBuCode )
-                            .query(sqlOrganizationBusinessUnitExist);
+        const result = await pool.query(sqlOrganizationBusinessUnitExist, [ogbuOrgCode, ogbuBuCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -61,16 +56,13 @@ const getAllOrganizationBusinessUnits = async() => {
             ORDER BY t1.ogbu_org_code,t1.ogbu_bu_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllOrganizationBusinessUnits);
+        const result = await pool.query(sqlGetAllOrganizationBusinessUnits);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Organizaciones Unidad de Negocio encontrados' : 'No se encontraron Organizaciones Unidad de Negocio',
-           organizationBusinessUnits: result?.recordset
+            message: result?.rows.length > 0 ? 'Organizaciones Unidad de Negocio encontrados' : 'No se encontraron Organizaciones Unidad de Negocio',
+           organizationBusinessUnits: result?.rows
         };
 
     } catch (error) {
@@ -101,19 +93,14 @@ const getOrganizationBusinessUnitById = async(ogbuOrgCode, ogbuBuCode) => {
             FROM tbl_organizations_business_units t1
             LEFT JOIN tbl_organizations t2 ON t2.org_code = t1.ogbu_org_code
             LEFT JOIN tbl_business_units t3 ON t3.bu_code = t1.ogbu_bu_code            
-            WHERE t1.ogbu_org_code     =   @ogbuOrgCode
-              and t1.ogbu_bu_code      =   @ogbuBuCode
+            WHERE t1.ogbu_org_code     =   $1
+              and t1.ogbu_bu_code      =   $2
             ORDER BY t1.ogbu_org_code,t1.ogbu_bu_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('ogbuOrgCode', sql.VarChar,ogbuOrgCode )
-                            .input('ogbuBuCode',  sql.VarChar,ogbuBuCode )
-                            .query(sqlGetOrganizationBusinessUnitByID);
+        const result = await pool.query(sqlGetOrganizationBusinessUnitByID, [ogbuOrgCode, ogbuBuCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -136,24 +123,20 @@ const getAllOrganizationBusinessUnitByName = async(ogbuName) => {
         FROM tbl_organizations_business_units t1
         LEFT JOIN tbl_organizations t2 ON t2.org_code = t1.ogbu_org_code
         LEFT JOIN tbl_business_units t3 ON t3.bu_code = t1.ogbu_bu_code
-        WHERE  (UPPER(t2.org_description)  LIKE UPPER(CONCAT('%',@ogbuName,'%')) OR
-                UPPER(t3.bu_name)          LIKE UPPER(CONCAT('%',@ogbuName,'%'))) 
+        WHERE  (UPPER(t2.org_description)  LIKE UPPER(CONCAT('%',$1,'%')) OR
+                UPPER(t3.bu_name)          LIKE UPPER(CONCAT('%',$1,'%'))) 
                 AND t1.ogbu_status = 'S'            
         ORDER BY t1.ogbu_org_code,t1.ogbu_bu_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('ogbuName', sql.VarChar,ogbuName )
-                            .query(qryFindOrganizationBusinessUnits);
+        const result = await pool.query(qryFindOrganizationBusinessUnits, [ogbuName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Organizaciones Unidad de Negocio encontradas' : 'No se encontraron Organizaciones Unidad de Negocio',
-           organizationBusinessUnits: result?.recordset
+            message: result?.rows.length > 0 ? 'Organizaciones Unidad de Negocio encontradas' : 'No se encontraron Organizaciones Unidad de Negocio',
+           organizationBusinessUnits: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -181,21 +164,15 @@ const createOrganizationBusinessUnit = async ( {
                     ,ogbu_creation_date
                     ,ogbu_status)
             VALUES
-                    (@ogbuOrgCode
-                    ,@ogbuBuCode
-                    ,DBO.fncGetDate()
-                    ,@ogbuStatus)
+                    ($1
+                    ,$2
+                    ,NOW()
+                    ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('ogbuOrgCode',    sql.VarChar, ogbuOrgCode   )             
-                            .input('ogbuBuCode',     sql.VarChar, ogbuBuCode )
-                            .input('ogbuStatus',     sql.VarChar, ogbuStatus   )                                                                                                                                                                                                                                
-                            .query(sqlCreateOrganizationBusinessUnit);
+        const result = await pool.query(sqlCreateOrganizationBusinessUnit, [ogbuOrgCode, ogbuBuCode, ogbuStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -224,18 +201,13 @@ const updateOrganizationBusinessUnit = async( params,ogbuOrgCode, ogbuBuCode ) =
         const sqlUpdateOrganizationBusinessUnit= `
         UPDATE tbl_organizations_business_units
            SET ${columnSet}
-        WHERE  ogbu_org_code       =   @ogbuOrgCode
-           and ogbu_bu_code        =   @ogbuBuCode
+        WHERE  ogbu_org_code       =   $1
+           and ogbu_bu_code        =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('ogbuOrgCode',    sql.VarChar, ogbuOrgCode   )             
-                            .input('ogbuBuCode',     sql.VarChar, ogbuBuCode    )
-                            .query(sqlUpdateOrganizationBusinessUnit);
+        const result = await pool.query(sqlUpdateOrganizationBusinessUnit, [ogbuOrgCode, ogbuBuCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -250,18 +222,13 @@ const deleteOrganizationBusinessUnit = async (ogbuOrgCode, ogbuBuCode ) => {
         const sqlDeleteOrganizationBusinessUnit = `
         DELETE 
           FROM tbl_organizations_business_units
-        WHERE ogbu_org_code     =   @ogbuOrgCode
-          and ogbu_bu_code      =   @ogbuBuCode
+        WHERE ogbu_org_code     =   $1
+          and ogbu_bu_code      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('ogbuOrgCode',    sql.VarChar, ogbuOrgCode )             
-                            .input('ogbuBuCode',     sql.VarChar, ogbuBuCode  )
-                            .query(sqlDeleteOrganizationBusinessUnit);
+        const result = await pool.query(sqlDeleteOrganizationBusinessUnit, [ogbuOrgCode, ogbuBuCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

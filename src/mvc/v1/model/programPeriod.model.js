@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const programPeriodExist = async (propCode ) => {
@@ -7,26 +7,22 @@ const programPeriodExist = async (propCode ) => {
     let respuesta;
     try {
         const sqlProgramPeriodExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Periodo de Programa ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_programs_periods t1
-                    WHERE t1.prop_code      =   @propCode
+                    WHERE t1.prop_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('propCode',  sql.VarChar,propCode )
-                            .query(sqlProgramPeriodExist);
+        const result = await pool.query(sqlProgramPeriodExist, [propCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -51,20 +47,17 @@ const getAllProgramPeriods = async() => {
                 ,t1.prop_name
                 ,t1.prop_creation_date
                 ,t1.prop_status
-            FROM dbo.tbl_programs_periods t1
+            FROM tbl_programs_periods t1
             order by t1.prop_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllProgramPeriods);
+        const result = await pool.query(sqlGetAllProgramPeriods);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Periodo de Programa encontrados' : 'No se encontraron Periodo de Programa',
-            programPeriods: result?.recordset
+            message: result?.rows.length > 0 ? 'Periodo de Programa encontrados' : 'No se encontraron Periodo de Programa',
+            programPeriods: result?.rows
         };
 
     } catch (error) {
@@ -90,18 +83,14 @@ const getProgramPeriodById = async(propCode) => {
                 ,t1.prop_name
                 ,t1.prop_creation_date
                 ,t1.prop_status
-            FROM dbo.tbl_programs_periods t1
-            WHERE t1.prop_code = @propCode 
+            FROM tbl_programs_periods t1
+            WHERE t1.prop_code = $1 
             order by t1.prop_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('propCode', sql.VarChar,propCode )                            
-                            .query(sqlGetLevelByID);
+        const result = await pool.query(sqlGetLevelByID, [propCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -119,24 +108,20 @@ const getAllProgamTypeByName = async(propName) => {
             ,t1.prop_name
             ,t1.prop_creation_date
             ,t1.prop_status
-        FROM dbo.tbl_programs_periods t1
-        WHERE UPPER(t1.prop_name)  LIKE UPPER(CONCAT('%',@propName,'%'))
+        FROM tbl_programs_periods t1
+        WHERE UPPER(t1.prop_name)  LIKE UPPER(CONCAT('%',$1,'%'))
         AND t1.prop_status = 'S'   
         order by t1.prop_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('propName', sql.VarChar, propName )
-                            .query(qryFindProgramPeriods);
+        const result = await pool.query(qryFindProgramPeriods, [propName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Periodo de Programa encontradas' : 'No se encontraron Periodo de Programa',
-            programPeriods: result?.recordset
+            message: result?.rows.length > 0 ? 'Periodo de Programa encontradas' : 'No se encontraron Periodo de Programa',
+            programPeriods: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -158,27 +143,21 @@ const createProgramPeriod = async ( {
     try {
         
         const sqlCreateProgramPeriod = `
-                INSERT INTO dbo.tbl_programs_periods
+                INSERT INTO tbl_programs_periods
                         ( prop_code
                          ,prop_name
                          ,prop_creation_date
                          ,prop_status)
                 VALUES
-                        (@propCode
-                        ,@propName
-                        ,DBO.fncGetDate()
-                        ,@propStatus)
+                        ($1
+                        ,$2
+                        ,NOW()
+                        ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('propCode',   sql.VarChar,  propCode   )             
-                            .input('propName',   sql.VarChar,  propName   )
-                            .input('propStatus', sql.VarChar,  propStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateProgramPeriod);
+        const result = await pool.query(sqlCreateProgramPeriod, [propCode, propName, propStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -207,16 +186,12 @@ const updateProgramPeriod = async( params,propCode ) => {
         const sqlUpdateProgramPeriod= `
         UPDATE tbl_programs_periods
            SET ${columnSet}
-         WHERE prop_code = @propCode
+         WHERE prop_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('propCode',     sql.VarChar,propCode )
-                            .query(sqlUpdateProgramPeriod);
+        const result = await pool.query(sqlUpdateProgramPeriod, [propCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -231,16 +206,12 @@ const deleteProgramPeriod = async (propCode) => {
         const sqlDeleteProgramPeriod = `
         DELETE 
           FROM tbl_programs_periods
-         WHERE prop_code = @propCode
+         WHERE prop_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('propCode',     sql.VarChar,propCode )
-                            .query(sqlDeleteProgramPeriod);
+        const result = await pool.query(sqlDeleteProgramPeriod, [propCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

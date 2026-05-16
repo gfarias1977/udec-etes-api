@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const layoutDataTypeExist = async ( laydCode ) => {
@@ -7,26 +7,22 @@ const layoutDataTypeExist = async ( laydCode ) => {
     let respuesta;
     try {
         const sqlLayoutDataTypeExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Tipo de Layout ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_layout_data_type t1
-                    WHERE t1.layd_code      =   @laydCode
+                    WHERE t1.layd_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('laydCode',  sql.VarChar, laydCode )
-                            .query(sqlLayoutDataTypeExist);
+        const result = await pool.query(sqlLayoutDataTypeExist, [laydCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -52,20 +48,17 @@ const getAllLayoutDataTypes = async() => {
                 ,t1.layd_document_type
                 ,t1.layd_creation_date
                 ,t1.layd_status
-            FROM dbo.tbl_layout_data_type t1
+            FROM tbl_layout_data_type t1
             order by t1.layd_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllLayourDataTypes);
+        const result = await pool.query(sqlGetAllLayourDataTypes);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Tipos de layout encontrados' : 'No se encontraron Tipos de Layout',
-            layoutDataTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Tipos de layout encontrados' : 'No se encontraron Tipos de Layout',
+            layoutDataTypes: result?.rows
         };
 
     } catch (error) {
@@ -92,18 +85,14 @@ const getLayoutDataTypeById = async( laydCode) => {
                 ,t1.layd_document_type
                 ,t1.layd_creation_date
                 ,t1.layd_status
-            FROM dbo.tbl_layout_data_type t1
-            WHERE t1.layd_code = @laydCode                 
+            FROM tbl_layout_data_type t1
+            WHERE t1.layd_code = $1                 
             order by t1.layd_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('laydCode', sql.VarChar, laydCode )                            
-                            .query(sqlGetLayoutDataTypeByID);
+        const result = await pool.query(sqlGetLayoutDataTypeByID, [laydCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -122,24 +111,20 @@ const getAllLayoutDataTypeByName = async(laydName) => {
             ,t1.layd_document_type
             ,t1.layd_creation_date
             ,t1.layd_status
-        FROM dbo.tbl_layout_data_type t1
-        WHERE UPPER(t1.layd_name)  LIKE UPPER(CONCAT('%',@laydName,'%'))
+        FROM tbl_layout_data_type t1
+        WHERE UPPER(t1.layd_name)  LIKE UPPER(CONCAT('%',$1,'%'))
            AND t1.layd_status = 'S'                 
         order by t1.layd_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('laydName', sql.VarChar, laydName )
-                            .query(qryFindLayourDataTypes);
+        const result = await pool.query(qryFindLayourDataTypes, [laydName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Tipos de Layout encontradas' : 'No se encontraron Tipos de Layout',
-            layoutDataTypes: result?.recordset
+            message: result?.rows.length > 0 ? 'Tipos de Layout encontradas' : 'No se encontraron Tipos de Layout',
+            layoutDataTypes: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -162,30 +147,23 @@ const createLayoutDataType = async ( {
     try {
         
         const sqlCreateLayoutDataType = `
-                INSERT INTO dbo.tbl_layout_data_type
+                INSERT INTO tbl_layout_data_type
                         ( layd_code
                          ,layd_name
                          ,layd_document_type
                          ,layd_creation_date
                          ,layd_status)
                 VALUES
-                        (@laydCode
-                        ,@laydName
-                        ,@laydDocumentType
-                        ,DBO.fncGetDate()
-                        ,@laydStatus)
+                        ($1
+                        ,$2
+                        ,$3
+                        ,NOW()
+                        ,$4)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('laydCode',         sql.VarChar,  laydCode )             
-                            .input('laydName',         sql.VarChar,  laydName )
-                            .input('laydDocumentType', sql.VarChar,  laydDocumentType )
-                            .input('laydStatus',       sql.VarChar,  laydStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateLayoutDataType);
+        const result = await pool.query(sqlCreateLayoutDataType, [laydCode, laydName, laydDocumentType, laydStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -214,16 +192,12 @@ const updateLayoutDataType = async( params, laydCode ) => {
         const sqlUpdateLayoutDataType= `
         UPDATE tbl_layout_data_type
            SET ${columnSet}
-         WHERE layd_code = @laydCode
+         WHERE layd_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('laydCode',     sql.VarChar, laydCode )
-                            .query(sqlUpdateLayoutDataType);
+        const result = await pool.query(sqlUpdateLayoutDataType, [laydCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -238,16 +212,12 @@ const deleteLayoutDataType = async ( laydCode ) => {
         const sqlDeleteLayoutDataType = `
         DELETE 
           FROM tbl_layout_data_type
-         WHERE layd_code = @laydCode
+         WHERE layd_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('laydCode',     sql.VarChar, laydCode )
-                            .query(sqlDeleteLayoutDataType);
+        const result = await pool.query(sqlDeleteLayoutDataType, [laydCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

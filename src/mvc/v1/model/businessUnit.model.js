@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const businessUnitExists = async ( buCode ) => {
@@ -7,26 +7,22 @@ const businessUnitExists = async ( buCode ) => {
     let respuesta;
     try {
         const sqlBusinessUnitExists = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Unidad de Negocio ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_business_units t1
-                   WHERE t1.bu_code      =   @buCode
+                   WHERE t1.bu_code      =   $1
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode',  sql.VarChar, buCode )
-                            .query(sqlBusinessUnitExists);
+        const result = await pool.query(sqlBusinessUnitExists, [buCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -48,24 +44,21 @@ const getAllBusinessUnits = async() => {
         const sqlGetAllBusinessUnits = `
             SELECT 
                 ROW_NUMBER() OVER(ORDER BY  t1.bu_code ASC) AS id
-                ,bu_code          AS buCode
-                ,bu_name          AS buName
-                ,bu_creation_date AS buCreationDate
-                ,bu_status        AS buStatus   
-            FROM dbo.tbl_business_units t1
+                ,bu_code          AS "buCode"
+                ,bu_name          AS "buName"
+                ,bu_creation_date AS "buCreationDate"
+                ,bu_status        AS "buStatus"   
+            FROM tbl_business_units t1
             ORDER BY t1.bu_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllBusinessUnits);
+        const result = await pool.query(sqlGetAllBusinessUnits);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Unidades de Negocio encontrados' : 'No se encontraron Unidades de Negocio',
-            businessUnits: result?.recordset
+            message: result?.rows.length > 0 ? 'Unidades de Negocio encontrados' : 'No se encontraron Unidades de Negocio',
+            businessUnits: result?.rows
         };
 
     } catch (error) {
@@ -88,22 +81,18 @@ const getBusinessUnitById = async( buCode ) => {
         const sqlGetBusinessUnitByID = `
             SELECT 
                 ROW_NUMBER() OVER(ORDER BY  t1.bu_code ASC) AS id
-                ,bu_code           AS buCode
-                ,bu_name           AS buName
-                ,bu_creation_date  AS buCreationDate
-                ,bu_status         AS buStatus 
-            FROM dbo.tbl_business_units t1
-            WHERE t1.bu_code = @buCode
+                ,bu_code           AS "buCode"
+                ,bu_name           AS "buName"
+                ,bu_creation_date  AS "buCreationDate"
+                ,bu_status         AS "buStatus" 
+            FROM tbl_business_units t1
+            WHERE t1.bu_code = $1
             ORDER BY t1.bu_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode', sql.VarChar, buCode )                            
-                            .query(sqlGetBusinessUnitByID);
+        const result = await pool.query(sqlGetBusinessUnitByID, [buCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -118,28 +107,24 @@ const getAllBusinessUnitsByName = async(buName) => {
     `
                 SELECT 
                     ROW_NUMBER() OVER(ORDER BY  t1.bu_code ASC) AS id
-                    ,bu_code            AS buCode
-                    ,bu_name            AS buName
-                    ,bu_creation_date   AS buCreationDate
-                    ,bu_status          AS buStatus  
-                FROM dbo.tbl_business_units t1
-                WHERE UPPER(t1.bu_name)  LIKE UPPER(CONCAT('%',@buName,'%'))
+                    ,bu_code            AS "buCode"
+                    ,bu_name            AS "buName"
+                    ,bu_creation_date   AS "buCreationDate"
+                    ,bu_status          AS "buStatus"  
+                FROM tbl_business_units t1
+                WHERE UPPER(t1.bu_name)  LIKE UPPER(CONCAT('%',$1,'%'))
                     AND t1.bu_status = 'S'
                 ORDER BY t1.bu_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buName', sql.VarChar, buName )
-                            .query(qryFindBusinessUnits);
+        const result = await pool.query(qryFindBusinessUnits, [buName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Unidades de Negocio encontrados' : 'No se encontraron Unidades de Negocio',
-            businessUnits: result?.recordset
+            message: result?.rows.length > 0 ? 'Unidades de Negocio encontrados' : 'No se encontraron Unidades de Negocio',
+            businessUnits: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -167,22 +152,16 @@ const createBusinessUnit = async ( {
             bu_creation_date,
             bu_status
         )VALUES(
-            UPPER(@buCode),
-            UPPER(@buName),
-            DBO.fncGetDate(),
-            UPPER(@buStatus)
+            UPPER($1),
+            UPPER($2),
+            NOW(),
+            UPPER($3)
         )      
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode',   sql.VarChar,  buCode )                            
-                            .input('buName',   sql.VarChar,  buName )
-                            .input('buStatus', sql.VarChar,  buStatus )
-                            .query(sqlCreateBusinessUnit);
+        const result = await pool.query(sqlCreateBusinessUnit, [buCode, buName, buStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -211,16 +190,12 @@ const updateBusinessUnit = async( params, buCode ) => {
         const sqlUpdateBusinessUnit = `
         UPDATE tbl_business_units
            SET ${columnSet}
-         WHERE bu_code = @buCode
+         WHERE bu_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode',     sql.VarChar, buCode )
-                            .query(sqlUpdateBusinessUnit);
+        const result = await pool.query(sqlUpdateBusinessUnit, [buCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -235,16 +210,12 @@ const deleteBusinessUnit = async ( buCode ) => {
         const sqlDeleteBusinessUnit = `
         DELETE 
           FROM tbl_business_units
-         WHERE bu_code = @buCode
+         WHERE bu_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode',     sql.VarChar, buCode )
-                            .query(sqlDeleteBusinessUnit);
+        const result = await pool.query(sqlDeleteBusinessUnit, [buCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

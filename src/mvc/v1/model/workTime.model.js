@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const workTimeExist = async (wktCode ) => {
@@ -7,26 +7,22 @@ const workTimeExist = async (wktCode ) => {
     let respuesta;
     try {
         const sqlWorkTimeExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Jornada ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_work_time t1
-                    WHERE t1.wkt_code      =   @wktCode
+                    WHERE t1.wkt_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('wktCode',  sql.VarChar,wktCode )
-                            .query(sqlWorkTimeExist);
+        const result = await pool.query(sqlWorkTimeExist, [wktCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,24 +43,21 @@ const getAllWorkTimes = async() => {
     try {
         const sqlGetAllWorkTimes = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.wkt_code ASC) AS id   
-                ,t1.wkt_code           AS   wktCode                      
-                ,t1.wkt_name           AS   wktName          
-                ,t1.wkt_creation_date  AS   wktCreationDate         
-                ,t1.wkt_status         AS   wktStatus         
-            FROM dbo.tbl_work_time t1
+                ,t1.wkt_code           AS "wktCode"                      
+                ,t1.wkt_name           AS "wktName"          
+                ,t1.wkt_creation_date  AS "wktCreationDate"         
+                ,t1.wkt_status         AS "wktStatus"         
+            FROM tbl_work_time t1
             order by t1.wkt_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllWorkTimes);
+        const result = await pool.query(sqlGetAllWorkTimes);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Jornada encontrados' : 'No se encontraron Jornada',
-           workTimes: result?.recordset
+            message: result?.rows.length > 0 ? 'Jornada encontrados' : 'No se encontraron Jornada',
+           workTimes: result?.rows
         };
 
     } catch (error) {
@@ -86,22 +79,18 @@ const getWorkTimeById = async(wktCode) => {
         
         const sqlGetWorkTimeByID = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.wkt_code ASC) AS id   
-                ,t1.wkt_code           AS   wktCode                      
-                ,t1.wkt_name           AS   wktName          
-                ,t1.wkt_creation_date  AS   wktCreationDate         
-                ,t1.wkt_status         AS   wktStatus  
-            FROM dbo.tbl_work_time t1
-            WHERE t1.wkt_code = @wktCode 
+                ,t1.wkt_code           AS "wktCode"                      
+                ,t1.wkt_name           AS "wktName"          
+                ,t1.wkt_creation_date  AS "wktCreationDate"         
+                ,t1.wkt_status         AS "wktStatus"  
+            FROM tbl_work_time t1
+            WHERE t1.wkt_code = $1 
             order by t1.wkt_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('wktCode', sql.VarChar,wktCode )                            
-                            .query(sqlGetWorkTimeByID);
+        const result = await pool.query(sqlGetWorkTimeByID, [wktCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -115,28 +104,24 @@ const getAllWorkTimeByName = async(wktName) => {
     const qryFindWorkTimes = 
     `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.wkt_code ASC) AS id   
-            ,t1.wkt_code           AS   wktCode                      
-            ,t1.wkt_name           AS   wktName          
-            ,t1.wkt_creation_date  AS   wktCreationDate         
-            ,t1.wkt_status         AS   wktStatus  
-        FROM dbo.tbl_work_time t1
-        WHERE UPPER(t1.wkt_name)  LIKE UPPER(CONCAT('%',@wktName,'%'))
+            ,t1.wkt_code           AS "wktCode"                      
+            ,t1.wkt_name           AS "wktName"          
+            ,t1.wkt_creation_date  AS "wktCreationDate"         
+            ,t1.wkt_status         AS "wktStatus"  
+        FROM tbl_work_time t1
+        WHERE UPPER(t1.wkt_name)  LIKE UPPER(CONCAT('%',$1,'%'))
         AND t1.wkt_status = 'S'   
         order by t1.wkt_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('wktName', sql.VarChar,wktName )
-                            .query(qryFindWorkTimes);
+        const result = await pool.query(qryFindWorkTimes, [wktName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Jornada encontradas' : 'No se encontraron Jornada',
-           workTimes: result?.recordset
+            message: result?.rows.length > 0 ? 'Jornada encontradas' : 'No se encontraron Jornada',
+           workTimes: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -158,27 +143,21 @@ const createWorkTime = async ( {
     try {
         
         const sqlCreateWorkTime = `
-                INSERT INTO dbo.tbl_work_time
+                INSERT INTO tbl_work_time
                         ( wkt_code
                          ,wkt_name
                          ,wkt_creation_date
                          ,wkt_status)
                 VALUES
-                        (@wktCode
-                        ,@wktName
-                        ,DBO.fncGetDate()
-                        ,@wktStatus)
+                        ($1
+                        ,$2
+                        ,NOW()
+                        ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('wktCode',         sql.VarChar, wktCode   )             
-                            .input('wktName',         sql.VarChar, wktName   )
-                            .input('wktStatus',       sql.VarChar, wktStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateWorkTime);
+        const result = await pool.query(sqlCreateWorkTime, [wktCode, wktName, wktStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -207,16 +186,12 @@ const updateWorkTime = async( params,wktCode ) => {
         const sqlUpdateWorkTime= `
         UPDATE tbl_work_time
            SET ${columnSet}
-         WHERE wkt_code = @wktCode
+         WHERE wkt_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('wktCode',     sql.VarChar,wktCode )
-                            .query(sqlUpdateWorkTime);
+        const result = await pool.query(sqlUpdateWorkTime, [wktCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -231,16 +206,12 @@ const deleteWorkTime = async (wktCode ) => {
         const sqlDeleteWorkTime = `
         DELETE 
           FROM tbl_work_time
-         WHERE wkt_code = @wktCode
+         WHERE wkt_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('wktCode',     sql.VarChar,wktCode )
-                            .query(sqlDeleteWorkTime);
+        const result = await pool.query(sqlDeleteWorkTime, [wktCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

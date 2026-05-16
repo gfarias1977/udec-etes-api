@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const roomLayoutExist = async ( rlayCode ) => {
@@ -7,26 +7,22 @@ const roomLayoutExist = async ( rlayCode ) => {
     let respuesta;
     try {
         const sqlRoomLayoutExist = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Recinto Prototipo ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_rooms_layout t1
-                   WHERE t1.rlay_code     =   @rlayCode
+                   WHERE t1.rlay_code     =   $1
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlayCode',  sql.VarChar, rlayCode )
-                            .query(sqlRoomLayoutExist);
+        const result = await pool.query(sqlRoomLayoutExist, [rlayCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,28 +43,25 @@ const getAllRoomLayouts = async() => {
     try {
         const sqlGetAllRoomLayouts = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.rlay_code ASC) AS id
-                ,t1.rlay_code            AS rlayCode          
-                ,t1.rlay_rlat_code       AS rlayRlatCode     
-                ,t1.rlay_description     AS rlayDescription   
-                ,t1.rlay_capacity        AS rlayCapacity      
-                ,t1.rlay_creation_date   AS rlayCreationDate 
-                ,'[' + t1.rlay_code  + '] ' + t1.rlay_description + ' [' + t1.rlay_rlat_code + ']' as rlayOptionLabel
-                ,t1.rlay_status          AS rlayStatus        
-            FROM dbo.tbl_rooms_layout t1
+                ,t1.rlay_code            AS "rlayCode"          
+                ,t1.rlay_rlat_code       AS "rlayRlatCode"     
+                ,t1.rlay_description     AS "rlayDescription"   
+                ,t1.rlay_capacity        AS "rlayCapacity"      
+                ,t1.rlay_creation_date   AS "rlayCreationDate" 
+                ,'[' || t1.rlay_code || '] ' || t1.rlay_description || ' [' || t1.rlay_rlat_code || ']' as rlayOptionLabel
+                ,t1.rlay_status          AS "rlayStatus"        
+            FROM tbl_rooms_layout t1
             WHERE t1.rlay_status = 'S'
             ORDER BY t1.rlay_rlat_code desc, t1.rlay_description
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllRoomLayouts);
+        const result = await pool.query(sqlGetAllRoomLayouts);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recinto Prototipo encontradas' : 'No se encontraron Recinto Prototipos',
-            roomLayouts: result?.recordset
+            message: result?.rows.length > 0 ? 'Recinto Prototipo encontradas' : 'No se encontraron Recinto Prototipos',
+            roomLayouts: result?.rows
         };
 
     } catch (error) {
@@ -89,30 +82,26 @@ const getAllRoomLayoutsByPurcCode = async(purcCode) => {
     try {
         const sqlGetAllRoomLayouts = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.rlay_code ASC) AS id
-                ,t1.rlay_code            AS rlayCode          
-                ,t1.rlay_rlat_code       AS rlayRlatCode     
-                ,t1.rlay_description     AS rlayDescription   
-                ,t1.rlay_capacity        AS rlayCapacity      
-                ,t1.rlay_creation_date   AS rlayCreationDate 
-                ,'[' + t1.rlay_code  + '] ' + t1.rlay_description + ' [' + t1.rlay_rlat_code + ']' as rlayOptionLabel
-                ,t1.rlay_status          AS rlayStatus        
-            FROM dbo.tbl_rooms_layout t1
+                ,t1.rlay_code            AS "rlayCode"          
+                ,t1.rlay_rlat_code       AS "rlayRlatCode"     
+                ,t1.rlay_description     AS "rlayDescription"   
+                ,t1.rlay_capacity        AS "rlayCapacity"      
+                ,t1.rlay_creation_date   AS "rlayCreationDate" 
+                ,'[' || t1.rlay_code || '] ' || t1.rlay_description || ' [' || t1.rlay_rlat_code || ']' as rlayOptionLabel
+                ,t1.rlay_status          AS "rlayStatus"        
+            FROM tbl_rooms_layout t1
             WHERE t1.rlay_status = 'S'
-            and t1.rlay_rlat_code  in (select rlaf_rlat_code from dbo.tbl_rooms_layout_filters where rlaf_purc_code = @purcCode)
+            and t1.rlay_rlat_code  in (select rlaf_rlat_code from tbl_rooms_layout_filters where rlaf_purc_code = $1)
             ORDER BY t1.rlay_rlat_code desc, t1.rlay_description
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode', sql.VarChar, purcCode )    
-                            .query(sqlGetAllRoomLayouts);
+        const result = await pool.query(sqlGetAllRoomLayouts, [purcCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recinto Prototipo encontradas' : 'No se encontraron Recinto Prototipos',
-            roomLayouts: result?.recordset
+            message: result?.rows.length > 0 ? 'Recinto Prototipo encontradas' : 'No se encontraron Recinto Prototipos',
+            roomLayouts: result?.rows
         };
 
     } catch (error) {
@@ -134,24 +123,20 @@ const getRoomLayoutById = async( rlayCode ) => {
         
         const sqlGetRoomLayoutByID = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.rlay_code ASC) AS id
-                ,t1.rlay_code            AS rlayCode           
-                ,t1.rlay_rlat_code       AS rlayRlatCode      
-                ,t1.rlay_description     AS rlayDescription    
-                ,t1.rlay_capacity        AS rlayCapacity       
-                ,t1.rlay_creation_date   AS rlayCreationDate  
-                ,t1.rlay_status          AS rlayStatus        
-            FROM dbo.tbl_rooms_layout t1
-            WHERE t1.rlay_code = @rlayCode
+                ,t1.rlay_code            AS "rlayCode"           
+                ,t1.rlay_rlat_code       AS "rlayRlatCode"      
+                ,t1.rlay_description     AS "rlayDescription"    
+                ,t1.rlay_capacity        AS "rlayCapacity"       
+                ,t1.rlay_creation_date   AS "rlayCreationDate"  
+                ,t1.rlay_status          AS "rlayStatus"        
+            FROM tbl_rooms_layout t1
+            WHERE t1.rlay_code = $1
             ORDER BY t1.rlay_rlat_code desc, t1.rlay_description
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlayCode', sql.VarChar, rlayCode )                            
-                            .query(sqlGetRoomLayoutByID);
+        const result = await pool.query(sqlGetRoomLayoutByID, [rlayCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -165,30 +150,26 @@ const getAllRoomLayoutsByName = async(rlayDescription) => {
     const qryFindRoomLayouts = 
     `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.rlay_code ASC) AS id
-            ,t1.rlay_code            AS rlayCode           
-            ,t1.rlay_rlat_code       AS rlayRlatCode     
-            ,t1.rlay_description     AS rlayDescription   
-            ,t1.rlay_capacity        AS rlayCapacity               
-            ,t1.rlay_creation_date   AS rlayCreationDate  
-            ,t1.rlay_status          AS rlayStatus        
-        FROM dbo.tbl_rooms_layout t1
-        WHERE UPPER(t1.rlay_description) LIKE UPPER(CONCAT('%',@rlayDescription,'%'))
+            ,t1.rlay_code            AS "rlayCode"           
+            ,t1.rlay_rlat_code       AS "rlayRlatCode"     
+            ,t1.rlay_description     AS "rlayDescription"   
+            ,t1.rlay_capacity        AS "rlayCapacity"               
+            ,t1.rlay_creation_date   AS "rlayCreationDate"  
+            ,t1.rlay_status          AS "rlayStatus"        
+        FROM tbl_rooms_layout t1
+        WHERE UPPER(t1.rlay_description) LIKE UPPER(CONCAT('%',$1,'%'))
             AND t1.rlay_status = 'S'
             ORDER BY t1.rlay_rlat_code desc, t1.rlay_description
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlayDescription', sql.VarChar, rlayDescription )
-                            .query(qryFindRoomLayouts);
+        const result = await pool.query(qryFindRoomLayouts, [rlayDescription]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recintos Prototipos encontrados' : 'No se encontraron Recintos Prototipos',
-            roomLayouts: result?.recordset
+            message: result?.rows.length > 0 ? 'Recintos Prototipos encontrados' : 'No se encontraron Recintos Prototipos',
+            roomLayouts: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -207,18 +188,18 @@ const getAllRoomLayoutsByParameters = async(purcCode, buCode,stdCode, orgCode) =
     `
     SELECT ROW_NUMBER() OVER(ORDER BY  t1.rlayCode ASC) AS id, t1.* FROM (
 		SELECT DISTINCT  
-             t1.rlay_code            AS rlayCode           
-            ,t1.rlay_rlat_code       AS rlayRlatCode     
-            ,t1.rlay_description     AS rlayDescription   
-            ,t1.rlay_capacity        AS rlayCapacity               
-            ,t1.rlay_creation_date   AS rlayCreationDate  
-            ,t1.rlay_status          AS rlayStatus     
-            ,t2.stdc_std_code        AS stdcStdCode   
-            ,t2.stdc_org_code        AS stdcOrgCode 
-            ,t2.stdc_purc_code       AS stdcPurcCode 
-            ,t2.stdc_bu_code         AS stdcBuCode 
-        FROM dbo.tbl_rooms_layout t1,
-            dbo.tbl_standards_courses t2
+             t1.rlay_code            AS "rlayCode"           
+            ,t1.rlay_rlat_code       AS "rlayRlatCode"     
+            ,t1.rlay_description     AS "rlayDescription"   
+            ,t1.rlay_capacity        AS "rlayCapacity"               
+            ,t1.rlay_creation_date   AS "rlayCreationDate"  
+            ,t1.rlay_status          AS "rlayStatus"     
+            ,t2.stdc_std_code        AS "stdcStdCode"   
+            ,t2.stdc_org_code        AS "stdcOrgCode" 
+            ,t2.stdc_purc_code       AS "stdcPurcCode" 
+            ,t2.stdc_bu_code         AS "stdcBuCode" 
+        FROM tbl_rooms_layout t1,
+            tbl_standards_courses t2
         WHERE 
                 t1.rlay_code = t2.stdc_rlay_code
             AND t2.stdc_bu_code   = coalesce(@buCode,t2.stdc_bu_code )
@@ -231,20 +212,13 @@ const getAllRoomLayoutsByParameters = async(purcCode, buCode,stdCode, orgCode) =
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('buCode',   sql.VarChar, buCode )
-                            .input('orgCode',  sql.VarChar, orgCode )
-                            .input('stdCode',  sql.VarChar, stdCode )
-                            .input('purcCode', sql.VarChar, purcCode )
-                            .query(qryFindRoomLayouts);
+        const result = await pool.query(qryFindRoomLayouts, [buCode, orgCode, stdCode, purcCode]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Recintos Prototipos encontrados' : 'No se encontraron Recintos Prototipos',
-            roomLayouts: result?.recordset
+            message: result?.rows.length > 0 ? 'Recintos Prototipos encontrados' : 'No se encontraron Recintos Prototipos',
+            roomLayouts: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -277,25 +251,17 @@ const createRoomLayout = async ( {
                     ,rlay_creation_date
                     ,rlay_status)
             VALUES
-                    (@rlayCode
-                    ,@rlayRlatCode    
-                    ,@rlayDescription
-                    ,@rlayCapacity
-                    ,DBO.fncGetDate()
-                    ,@rlayStatus)      
+                    ($1
+                    ,$2    
+                    ,$3
+                    ,$4
+                    ,NOW()
+                    ,$5)      
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlayCode',          sql.VarChar,  rlayCode        )                            
-                            .input('rlayRlatCode',      sql.VarChar,  rlayRlatCode    )
-                            .input('rlayDescription',   sql.VarChar,  rlayDescription )                            
-                            .input('rlayCapacity',      sql.VarChar,  rlayCapacity    )                            
-                            .input('rlayStatus',        sql.VarChar,  rlayStatus      )
-                            .query(sqlCreateRoomLayout);
+        const result = await pool.query(sqlCreateRoomLayout, [rlayCode, rlayRlatCode, rlayDescription, rlayCapacity, rlayStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -324,16 +290,12 @@ const updateRoomLayout = async( params, rlayCode ) => {
         const sqlUpdateRoomLayout = `
         UPDATE tbl_rooms_layout
            SET ${columnSet}
-         WHERE rlay_code = @rlayCode
+         WHERE rlay_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlayCode', sql.VarChar, rlayCode )
-                            .query(sqlUpdateRoomLayout);
+        const result = await pool.query(sqlUpdateRoomLayout, [rlayCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -348,16 +310,12 @@ const deleteRoomLayout = async ( rlayCode ) => {
         const sqlDeleteRoomLayout = `
         DELETE 
           FROM tbl_rooms_layout
-         WHERE rlay_code = @rlayCode
+         WHERE rlay_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rlayCode',     sql.VarChar, rlayCode )
-                            .query(sqlDeleteRoomLayout);
+        const result = await pool.query(sqlDeleteRoomLayout, [rlayCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

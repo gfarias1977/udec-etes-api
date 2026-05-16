@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const roomLayoutDataExist = async (rladLaydCode, rladRlayCode ) => {
@@ -7,28 +7,23 @@ const roomLayoutDataExist = async (rladLaydCode, rladRlayCode ) => {
     let respuesta;
     try {
         const sqlRoomLayoutDataExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Tipo de Documento del recinto ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_rooms_layout_data t1
-                    WHERE t1.rlad_layd_code    =   @rladLaydCode
-                    and t1.rlad_rlay_code      =   @rladRlayCode
+                    WHERE t1.rlad_layd_code    =   $1
+                    and t1.rlad_rlay_code      =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rladLaydCode',  sql.VarChar,rladLaydCode )
-                            .input('rladRlayCode',  sql.VarChar,rladRlayCode )
-                            .query(sqlRoomLayoutDataExist);
+        const result = await pool.query(sqlRoomLayoutDataExist, [rladLaydCode, rladRlayCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -55,20 +50,17 @@ const getAllRoomLayoutData = async() => {
                 ,t1.rlad_description
                 ,t1.rlad_creation_date
                 ,t1.rlad_data
-            FROM dbo.tbl_rooms_layout_data t1
+            FROM tbl_rooms_layout_data t1
             order by t1.rlad_layd_code,t1.rlad_rlay_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllRoomLayoutData);
+        const result = await pool.query(sqlGetAllRoomLayoutData);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Tipo de Documento del recinto encontrados' : 'No se encontraron Tipo de Documento del recinto',
-            roomLayoutData: result?.recordset
+            message: result?.rows.length > 0 ? 'Tipo de Documento del recinto encontrados' : 'No se encontraron Tipo de Documento del recinto',
+            roomLayoutData: result?.rows
         };
 
     } catch (error) {
@@ -96,20 +88,15 @@ const getRoomLayoutDataById = async(rladLaydCode, rladRlayCode) => {
                 ,t1.rlad_description
                 ,t1.rlad_creation_date
                 ,t1.rlad_data
-            FROM dbo.tbl_rooms_layout_data t1
-            WHERE t1.rlad_layd_code      =   @rladLaydCode
-              and t1.rlad_rlay_code      =   @rladRlayCode
+            FROM tbl_rooms_layout_data t1
+            WHERE t1.rlad_layd_code      =   $1
+              and t1.rlad_rlay_code      =   $2
             order by t1.rlad_layd_code,t1.rlad_rlay_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rladLaydCode',  sql.VarChar, rladLaydCode )
-                            .input('rladRlayCode',  sql.VarChar, rladRlayCode )
-                            .query(sqlGetRoomLayoutDataByID);
+        const result = await pool.query(sqlGetRoomLayoutDataByID, [rladLaydCode, rladRlayCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -127,29 +114,25 @@ const getAllRoomLayoutDataByName = async(rladDescription) => {
             ,t1.rlad_rlay_code
             ,t1.rlad_creation_date
             ,t1.rlad_data
-        FROM dbo.tbl_rooms_layout_data t1,
-             dbo.tbl_layout_data_type  t2,
-             dbo.tbl_rooms_layout      t3
+        FROM tbl_rooms_layout_data t1,
+             tbl_layout_data_type  t2,
+             tbl_rooms_layout      t3
         WHERE 
             t1.rlad_layd_code = t2.layd_code
         and t1.rlad_rlay_code = t3.rlay_code
-        and (UPPER(t2.layd_name)    LIKE UPPER(CONCAT('%',@rladDescription,'%')) OR
-        UPPER(t3.rlay_description)  LIKE UPPER(CONCAT('%',@rladDescription,'%'))) 
+        and (UPPER(t2.layd_name)    LIKE UPPER(CONCAT('%',$1,'%')) OR
+        UPPER(t3.rlay_description)  LIKE UPPER(CONCAT('%',$1,'%'))) 
         order by t1.rlad_layd_code,t1.rlad_rlay_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rladDescription', sql.VarChar,rladDescription )
-                            .query(qryFindRoomLayoutData);
+        const result = await pool.query(qryFindRoomLayoutData, [rladDescription]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Tipo de Documento del recinto encontradas' : 'No se encontraron Tipo de Documento del recinto',
-            roomLayoutData: result?.recordset
+            message: result?.rows.length > 0 ? 'Tipo de Documento del recinto encontradas' : 'No se encontraron Tipo de Documento del recinto',
+            roomLayoutData: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -179,23 +162,16 @@ const createRoomLayoutData = async ( {
                     ,rlad_creation_date
                     ,rlad_data)
             VALUES
-                    (@rladLaydCode
-                    ,@rladRlayCode
-                    ,@rladDescription
-                    ,DBO.fncGetDate()
-                    ,@rladData)
+                    ($1
+                    ,$2
+                    ,$3
+                    ,NOW()
+                    ,$4)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rladLaydCode',    sql.VarChar, rladLaydCode    )             
-                            .input('rladRlayCode',    sql.VarChar, rladRlayCode    )
-                            .input('rladDescription', sql.VarChar, rladDescription )
-                            .input('rladData',        sql.VarChar, rladData        )                                                                                                                                                                                                                                
-                            .query(sqlCreateRoomLayoutData);
+        const result = await pool.query(sqlCreateRoomLayoutData, [rladLaydCode, rladRlayCode, rladDescription, rladData]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -224,18 +200,13 @@ const updateRoomLayoutData = async( params,rladLaydCode, rladRlayCode) => {
         const sqlUpdateRoomLayoutData= `
         UPDATE tbl_rooms_layout_data
            SET ${columnSet}
-        WHERE rlad_layd_code       =   @rladLaydCode
-           and rlad_rlay_code      =   @rladRlayCode
+        WHERE rlad_layd_code       =   $1
+           and rlad_rlay_code      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rladLaydCode',     sql.VarChar, rladLaydCode   )             
-                            .input('rladRlayCode',     sql.VarChar, rladRlayCode )
-                            .query(sqlUpdateRoomLayoutData);
+        const result = await pool.query(sqlUpdateRoomLayoutData, [rladLaydCode, rladRlayCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -250,18 +221,13 @@ const deleteRoomLayoutData = async (rladLaydCode, rladRlayCode) => {
         const sqlDeleteRoomLayoutData = `
         DELETE 
           FROM tbl_rooms_layout_data
-        WHERE rlad_layd_code      =   @rladLaydCode
-          and rlad_rlay_code      =   @rladRlayCode
+        WHERE rlad_layd_code      =   $1
+          and rlad_rlay_code      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('rladLaydCode', sql.VarChar, rladLaydCode )             
-                            .input('rladRlayCode', sql.VarChar, rladRlayCode )
-                            .query(sqlDeleteRoomLayoutData);
+        const result = await pool.query(sqlDeleteRoomLayoutData, [rladLaydCode, rladRlayCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

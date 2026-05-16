@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const standardExists = async ( standardCode, standardOrgCode, standardBuCode, standardPurcCode, standardVersion) => {
@@ -7,34 +7,26 @@ const standardExists = async ( standardCode, standardOrgCode, standardBuCode, st
     let respuesta;
     try {
         const sqlStandardExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                 SELECT 'Estandar ya existe.'  AS  validacion,
                         count(*) AS total
                     FROM tbl_standards t1
-                WHERE t1.std_code          =   @standardCode
-                    AND t1.std_org_code    =   @standardOrgCode
-                    AND t1.std_bu_code     =   @standardBuCode
-                    AND t1.std_purc_code   =   @standardPurcCode
-                    AND t1.std_version     =    @standardVersion
+                WHERE t1.std_code          =   $1
+                    AND t1.std_org_code    =   $2
+                    AND t1.std_bu_code     =   $3
+                    AND t1.std_purc_code   =   $4
+                    AND t1.std_version     =    $5
                 ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('standardCode', sql.VarChar, standardCode )
-                            .input('standardOrgCode',  sql.VarChar, standardOrgCode )
-                            .input('standardBuCode', sql.VarChar, standardBuCode )
-                            .input('standardPurcCode',  sql.VarChar, standardPurcCode )
-                            .input('standardVersion', sql.Int, standardVersion )
-                            .query(sqlStandardExists);
+        const result = await pool.query(sqlStandardExists, [standardCode, standardOrgCode, standardBuCode, standardPurcCode, standardVersion]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -55,63 +47,57 @@ const getAllStandardsByUserId = async( userId, businessUnitCode, purchaseAreaCod
     try {
         const sqlGetAllStandards = `
              SELECT ROW_NUMBER() OVER(ORDER BY  t1.std_code ASC) AS id
-                    ,t1.std_purc_code              AS    stdPurcCode               
-                    ,t7.purc_description		   AS 	stdPurcDescription		
-                    ,t1.std_name				   AS 	stdName				
-                    ,t1.std_code				   AS 	stdCode				
-                    ,t1.std_bu_code				   AS 	stdBuCode				
-                    ,t1.std_bu_code          	   AS 	stdBuName	
-                    ,t1.std_org_code			   AS 	stdOrgCode			
-                    ,t3.org_description			   AS 	stdOrgDescription			
-                    ,t4.cacc_description		   AS 	stdCaccDescription		
-                    ,t4.cacc_code				   AS 	stdCaccCode				
-                    ,t5.scho_description		   AS 	stdSchoDescription		
-                    ,t5.scho_code				   AS 	stdSchoCode				
-                    ,t1.std_registration_date	   AS 	stdRegistrationDate	
-                    ,t1.std_year				   AS 	stdYear				
-                    ,t1.std_version				   AS 	stdVersion	
-                    ,COALESCE(t1.std_available_for_purchase, 'N') AS stdAvailableForPurchase 			
-                    ,t1.std_status                 AS 	stdStatus              
-               FROM dbo.tbl_standards t1
-                JOIN dbo.tbl_users_business_units t2
+                    ,t1.std_purc_code              AS "stdPurcCode"               
+                    ,t7.purc_description		   AS "stdPurcDescription"		
+                    ,t1.std_name				   AS "stdName"				
+                    ,t1.std_code				   AS "stdCode"				
+                    ,t1.std_bu_code				   AS "stdBuCode"				
+                    ,t1.std_bu_code          	   AS "stdBuName"	
+                    ,t1.std_org_code			   AS "stdOrgCode"			
+                    ,t3.org_description			   AS "stdOrgDescription"			
+                    ,t4.cacc_description		   AS "stdCaccDescription"		
+                    ,t4.cacc_code				   AS "stdCaccCode"				
+                    ,t5.scho_description		   AS "stdSchoDescription"		
+                    ,t5.scho_code				   AS "stdSchoCode"				
+                    ,t1.std_registration_date	   AS "stdRegistrationDate"	
+                    ,t1.std_year				   AS "stdYear"				
+                    ,t1.std_version				   AS "stdVersion"	
+                    ,COALESCE(t1.std_available_for_purchase, 'N') AS "stdAvailableForPurchase" 			
+                    ,t1.std_status                 AS "stdStatus"              
+               FROM tbl_standards t1
+                JOIN tbl_users_business_units t2
                     ON t2.usbu_bu_code     =   t1.std_bu_code
-                    AND t2.usbu_user_id     =   @userId
-                    AND t2.usbu_bu_code     =   @businessUnitCode
+                    AND t2.usbu_user_id     =   $1
+                    AND t2.usbu_bu_code     =   $2
                     AND t2.usbu_status      =   'S'
-                LEFT JOIN dbo.tbl_organizations t3
+                LEFT JOIN tbl_organizations t3
                         ON t3.org_code         =   t1.std_org_code
-                LEFT JOIN dbo.tbl_charge_account t4
+                LEFT JOIN tbl_charge_account t4
                         ON t4.cacc_code        =   t1.std_cacc_code
-                LEFT JOIN dbo.tbl_schools t5
+                LEFT JOIN tbl_schools t5
                         ON t5.scho_org_code    =   t1.std_org_code
                         AND scho_code           =   t1.std_scho_code
-                JOIN dbo.tbl_users_charge_accounts t6
-                        ON t6.ucac_user_id     =   @userId
+                JOIN tbl_users_charge_accounts t6
+                        ON t6.ucac_user_id     =   $1
                         AND t6.ucac_purc_code   =   t1.std_purc_code
                         AND t6.ucac_cacc_code   =   t1.std_cacc_code
                 JOIN tbl_purchase_areas t7
                         ON t7.purc_code        =   t1.std_purc_code
                         AND t7.purc_status      =   'S'
-            WHERE t1.std_purc_code    =   @purchaseAreaCode
+            WHERE t1.std_purc_code    =   $3
                         AND t5.scho_description IS NOT NULL
             ORDER BY t1.std_code,
                     t1.std_year DESC,
                     t1.std_version DESC
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('userId', sql.Int, userId )
-                            .input('businessUnitCode', sql.VarChar, businessUnitCode )
-                            .input('purchaseAreaCode', sql.VarChar, purchaseAreaCode )
-                            .query(sqlGetAllStandards);
+        const result = await pool.query(sqlGetAllStandards, [userId, businessUnitCode, purchaseAreaCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
-            standards: result?.recordset
+            message: result?.rows.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
+            standards: result?.rows
         };
 
     } catch (error) {
@@ -142,21 +128,21 @@ const getStandardById = async(
         const sqlGetStandardByKey = `
             SELECT DISTINCT 
                     ROW_NUMBER() OVER(ORDER BY  t1.std_code ASC) AS id
-                    ,t1.std_code                  AS  stdCode                
-                    ,t1.std_org_code              AS  stdOrgCode            
-                    ,t2.org_description			  AS  orgDescription			
-                    ,t1.std_bu_code				  AS  stdBuCode				
-                    ,t1.std_purc_code			  AS  stdPurcCode			
-                    ,t1.std_version				  AS  stdVersion				
-                    ,t1.std_name				  AS  stdName				
-                    ,t1.std_registration_date	  AS  stdRegistrationDate	
-                    ,t1.std_cacc_code			  AS  stdCaccCode			
-                    ,t3.cacc_description		  AS  stdCaccDescription		
-                    ,t1.std_scho_code			  AS  stdSchoCode			
-                    ,t4.scho_description		  AS  stdSchoDescription		
-                    ,t1.std_year                  AS  stdYear
-                    ,COALESCE(t1.std_available_for_purchase, 'N') AS stdAvailableForPurchase
-                    ,t1.std_status AS stdStatus
+                    ,t1.std_code                  AS "stdCode"                
+                    ,t1.std_org_code              AS "stdOrgCode"            
+                    ,t2.org_description			  AS "orgDescription"			
+                    ,t1.std_bu_code				  AS "stdBuCode"				
+                    ,t1.std_purc_code			  AS "stdPurcCode"			
+                    ,t1.std_version				  AS "stdVersion"				
+                    ,t1.std_name				  AS "stdName"				
+                    ,t1.std_registration_date	  AS "stdRegistrationDate"	
+                    ,t1.std_cacc_code			  AS "stdCaccCode"			
+                    ,t3.cacc_description		  AS "stdCaccDescription"		
+                    ,t1.std_scho_code			  AS "stdSchoCode"			
+                    ,t4.scho_description		  AS "stdSchoDescription"		
+                    ,t1.std_year                  AS "stdYear"
+                    ,COALESCE(t1.std_available_for_purchase, 'N') AS "stdAvailableForPurchase"
+                    ,t1.std_status AS "stdStatus"
             FROM tbl_standards t1
                 LEFT JOIN tbl_organizations t2 ON t2.org_code = t1.std_org_code
                 LEFT JOIN tbl_charge_account t3 ON t3.cacc_code = t1.std_cacc_code AND t3.cacc_org_code = t2.org_code
@@ -164,32 +150,22 @@ const getStandardById = async(
                 LEFT JOIN tbl_users_business_units t5 ON  t5.usbu_bu_code = t1.std_bu_code 
                 LEFT JOIN tbl_users_charge_accounts t6 ON  t6.ucac_cacc_code = t1.std_cacc_code AND t6.ucac_purc_code = t1.std_purc_code
             WHERE
-                        t1.std_code      = @stdCode
-                    AND t1.std_org_code  = @stdOrgCode
-                    AND t1.std_bu_code   = @stdBuCode
-                    AND t1.std_purc_code = @stdPurcCode
-                    AND t1.std_year      = @stdYear
-                    AND t1.std_version   = @stdVersion
-                    AND t5.usbu_user_id  = @stdUserId
-                    AND t6.ucac_user_id  = @stdUserId 
-                    AND t5.usbu_bu_code  = @stdBuCode
+                        t1.std_code      = $1
+                    AND t1.std_org_code  = $2
+                    AND t1.std_bu_code   = $3
+                    AND t1.std_purc_code = $4
+                    AND t1.std_year      = $5
+                    AND t1.std_version   = $6
+                    AND t5.usbu_user_id  = $7
+                    AND t6.ucac_user_id  = $7 
+                    AND t5.usbu_bu_code  = $3
                     AND t4.scho_description IS NOT NULL
             ORDER BY  t1.std_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdCode',     sql.VarChar, stdCode     )
-                            .input('stdOrgCode',  sql.VarChar, stdOrgCode  )
-                            .input('stdBuCode',   sql.VarChar, stdBuCode   )
-                            .input('stdPurcCode', sql.VarChar, stdPurcCode )
-                            .input('stdYear',     sql.Int,     stdYear     )
-                            .input('stdVersion',  sql.Int,     stdVersion  )
-                            .input('stdUserId',   sql.Int,     stdUserId   )
-                            .query(sqlGetStandardByKey);
+        const result = await pool.query(sqlGetStandardByKey, [stdCode, stdOrgCode, stdBuCode, stdPurcCode, stdYear, stdVersion, stdUserId]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -215,22 +191,22 @@ const getStandardBySearch = async(
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.stdCode ASC) AS id, t1.* FROM (
             SELECT DISTINCT 
                     --ROW_NUMBER() OVER(ORDER BY  t1.std_code ASC) AS id
-                  t1.std_code                  AS  stdCode                
-                 ,t1.std_org_code              AS  stdOrgCode            
-                 ,t2.org_description		   AS  orgDescription			
-                 ,t1.std_bu_code			   AS  stdBuCode				
-                 ,t1.std_purc_code			   AS  stdPurcCode			
-                 ,t1.std_version			   AS  stdVersion				
-                 ,t1.std_name				   AS  stdName				
-                 ,t1.std_registration_date	   AS  stdRegistrationDate	
-                 ,t1.std_cacc_code			   AS  stdCaccCode			
-                 ,t3.cacc_description		   AS  stdCaccDescription		
-                 ,t1.std_scho_code			   AS  stdSchoCode			
-                 ,t4.scho_description		   AS  stdSchoDescription		
-                 ,t1.std_year                  AS  stdYear
-                 ,COALESCE(t1.std_available_for_purchase, 'N') AS stdAvailableForPurchase
-                 ,t1.std_status AS stdStatus
-                 ,'[' + CAST(t1.std_version AS VARCHAR)  + ']' +  t1.std_name  AS stdOptionLabel
+                  t1.std_code                  AS "stdCode"                
+                 ,t1.std_org_code              AS "stdOrgCode"            
+                 ,t2.org_description		   AS "orgDescription"			
+                 ,t1.std_bu_code			   AS "stdBuCode"				
+                 ,t1.std_purc_code			   AS "stdPurcCode"			
+                 ,t1.std_version			   AS "stdVersion"				
+                 ,t1.std_name				   AS "stdName"				
+                 ,t1.std_registration_date	   AS "stdRegistrationDate"	
+                 ,t1.std_cacc_code			   AS "stdCaccCode"			
+                 ,t3.cacc_description		   AS "stdCaccDescription"		
+                 ,t1.std_scho_code			   AS "stdSchoCode"			
+                 ,t4.scho_description		   AS "stdSchoDescription"		
+                 ,t1.std_year                  AS "stdYear"
+                 ,COALESCE(t1.std_available_for_purchase, 'N') AS "stdAvailableForPurchase"
+                 ,t1.std_status AS "stdStatus"
+                 ,'[' || CAST(t1.std_version AS "VARCHAR")  + ']' || t1.std_name  AS "stdOptionLabel"
             FROM tbl_standards t1
             LEFT JOIN tbl_organizations t2 ON t2.org_code = t1.std_org_code
             LEFT JOIN tbl_charge_account t3 ON t3.cacc_code = t1.std_cacc_code AND t3.cacc_org_code = t2.org_code
@@ -238,40 +214,29 @@ const getStandardBySearch = async(
             LEFT JOIN tbl_users_business_units t5 ON  t5.usbu_bu_code = t1.std_bu_code 
             LEFT JOIN tbl_users_charge_accounts t6 ON  t6.ucac_cacc_code = t1.std_cacc_code AND t6.ucac_purc_code = t1.std_purc_code
             WHERE
-                    t1.std_code      = COALESCE(@stdCode,t1.std_code)
-                AND t1.std_org_code  = COALESCE(@stdOrgCode,t1.std_org_code)
-                AND t1.std_bu_code   = COALESCE(@stdBuCode,t1.std_bu_code)
-                AND t1.std_purc_code = COALESCE(@stdPurcCode,t1.std_purc_code)
-                AND t1.std_year      = COALESCE(@stdYear,t1.std_year)
-                AND t1.std_version   = COALESCE(@stdVersion,t1.std_version)
-                AND t5.usbu_user_id  = COALESCE(@stdUserId, t5.usbu_user_id)
-                AND t6.ucac_user_id  = COALESCE(@stdUserId, t6.ucac_user_id)
-                AND t5.usbu_bu_code  = COALESCE(@stdBuCode,t5.usbu_bu_code)
-                AND t1.std_available_for_purchase  = COALESCE(@stdPurchase,t1.std_available_for_purchase)
+                    t1.std_code      = COALESCE($1,t1.std_code)
+                AND t1.std_org_code  = COALESCE($2,t1.std_org_code)
+                AND t1.std_bu_code   = COALESCE($3,t1.std_bu_code)
+                AND t1.std_purc_code = COALESCE($4,t1.std_purc_code)
+                AND t1.std_year      = COALESCE($5,t1.std_year)
+                AND t1.std_version   = COALESCE($6,t1.std_version)
+                AND t5.usbu_user_id  = COALESCE($8, t5.usbu_user_id)
+                AND t6.ucac_user_id  = COALESCE($8, t6.ucac_user_id)
+                AND t5.usbu_bu_code  = COALESCE($3,t5.usbu_bu_code)
+                AND t1.std_available_for_purchase  = COALESCE($7,t1.std_available_for_purchase)
                 AND t4.scho_description IS NOT NULL
                 --ORDER BY  t1.std_code 
                 ) t1
                 ORDER BY  t1.stdCode 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdCode',     sql.VarChar, stdCode )
-                            .input('stdOrgCode',  sql.VarChar, stdOrgCode )
-                            .input('stdBuCode',   sql.VarChar, stdBuCode )
-                            .input('stdPurcCode', sql.VarChar, stdPurcCode )
-                            .input('stdYear',     sql.Int,     stdYear )
-                            .input('stdVersion',  sql.Int,     stdVersion )
-                            .input('stdPurchase', sql.VarChar, stdPurchase )
-                            .input('stdUserId',   sql.Int,     stdUserId )
-                            .query(sqlGetStandardBySearch);
+        const result = await pool.query(sqlGetStandardBySearch, [stdCode, stdOrgCode, stdBuCode, stdPurcCode, stdYear, stdVersion, stdPurchase, stdUserId]);
         
             respuesta = {
                 type: 'ok',
                 status: 200,
-                message: result?.recordset.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
-                standards: result?.recordset
+                message: result?.rows.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
+                standards: result?.rows
             };
     
         } catch (error) {
@@ -324,10 +289,10 @@ const getStandardApplieToMajor = async( purcCode, buCode, majorCode, stdCode, st
                 cours_org_code = major_org_code
             and cours_code = prgd_cours_code
             join tbl_standards_courses on
-                stdc_bu_code     = @buCode
-            and stdc_std_code    = @stdCode
-            and stdc_purc_code   = @purcCode
-            and stdc_std_version = @stdVersion
+                stdc_bu_code     = $2
+            and stdc_std_code    = $4
+            and stdc_purc_code   = $1
+            and stdc_std_version = $5
             and stdc_org_code    = cours_org_code
             and stdc_cours_code  = cours_code
             left join tbl_items on
@@ -340,21 +305,13 @@ const getStandardApplieToMajor = async( purcCode, buCode, majorCode, stdCode, st
             and stdc_status = 'S';
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode',   sql.VarChar, purcCode )
-                            .input('buCode',     sql.VarChar, buCode )
-                            .input('majorCode',  sql.VarChar, majorCode )
-                            .input('stdCode',    sql.VarChar, stdCode )
-                            .input('stdVersion', sql.Int,     stdVersion )                            
-                            .query(sqlGetStandardApplieToMajor);
+        const result = await pool.query(sqlGetStandardApplieToMajor, [purcCode, buCode, majorCode, stdCode, stdVersion]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Estandares Aplicadoa a Carrera encontrados' : 'No se encontraron Estandares Aplicadoa a Carrera',
-            standardsAppliedToMajor: result?.recordset
+            message: result?.rows.length > 0 ? 'Estandares Aplicadoa a Carrera encontrados' : 'No se encontraron Estandares Aplicadoa a Carrera',
+            standardsAppliedToMajor: result?.rows
         };
 
     } catch (error) {
@@ -401,29 +358,21 @@ const getStandardApplieToRoomLayout = async( purcCode, buCode, rlayCode, stdCode
                 LEFT JOIN tbl_courses
                 ON     cours_org_code = stdc_org_code
                     AND cours_code = stdc_cours_code
-        WHERE     stdc_bu_code LIKE @buCode
-                AND stdc_std_code LIKE @stdCode
-                AND stdc_std_version = @stdVersion
-                AND stdc_rlay_code LIKE @rlayCode
-                AND stdc_purc_code = @purcCode
+        WHERE     stdc_bu_code LIKE $2
+                AND stdc_std_code LIKE $4
+                AND stdc_std_version = $5
+                AND stdc_rlay_code LIKE $3
+                AND stdc_purc_code = $1
         ORDER BY stdc_rlay_code, stdc_item_code, stdc_cours_code;
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode',   sql.VarChar, purcCode )
-                            .input('buCode',     sql.VarChar, buCode )
-                            .input('rlayCode',   sql.VarChar, rlayCode )
-                            .input('stdCode',    sql.VarChar, stdCode )
-                            .input('stdVersion', sql.Int,     stdVersion )                            
-                            .query(sqlGetStandardApplieToRoomLayout);
+        const result = await pool.query(sqlGetStandardApplieToRoomLayout, [purcCode, buCode, rlayCode, stdCode, stdVersion]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Estandares Aplicadoa a Recintos Prototipo encontrados' : 'No se encontraron Estandares Aplicadoa a Recintos Prototipos',
-            standardsAppliedToRoomLayout: result?.recordset
+            message: result?.rows.length > 0 ? 'Estandares Aplicadoa a Recintos Prototipo encontrados' : 'No se encontraron Estandares Aplicadoa a Recintos Prototipos',
+            standardsAppliedToRoomLayout: result?.rows
         };
 
     } catch (error) {
@@ -486,13 +435,13 @@ const getStandardEquipmentByMajor = async( majorCode, progCode, purcCode ) => {
                 t03.cours_org_code = t02.major_org_code
             AND t03.cours_code = t01.prgd_cours_code
             WHERE
-                t01.prgd_major_code = @majorCode
-            AND t01.prgd_prog_code = @progCode
+                t01.prgd_major_code = $1
+            AND t01.prgd_prog_code = $2
             AND t01.prgd_level > 0
             ) grid
             --LEFT
             JOIN tbl_standards_courses t01 ON
-                t01.stdc_purc_code LIKE @purcCode
+                t01.stdc_purc_code LIKE $3
             AND t01.stdc_org_code = grid.majorOrgCode
             AND t01.stdc_cours_code = grid.coursCode
             AND t01.stdc_status = 'S'
@@ -509,19 +458,13 @@ const getStandardEquipmentByMajor = async( majorCode, progCode, purcCode ) => {
             grid.coursCode;
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('majorCode',  sql.VarChar, majorCode )
-                            .input('progCode',   sql.VarChar, progCode )
-                            .input('purcCode',   sql.VarChar, purcCode )                                                     
-                            .query(sqlGetStandardEquipmentByMajor);
+        const result = await pool.query(sqlGetStandardEquipmentByMajor, [majorCode, progCode, purcCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Equipamiento de Carrera encontrados' : 'No se encontraron Equipamiento de Carrera',
-            standardsEquipmentByMajor: result?.recordset
+            message: result?.rows.length > 0 ? 'Equipamiento de Carrera encontrados' : 'No se encontraron Equipamiento de Carrera',
+            standardsEquipmentByMajor: result?.rows
         };
 
     } catch (error) {
@@ -542,23 +485,23 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
     try {
         const sqlGetBookCoverage = `
             SELECT
-                    INST                  AS orgCode,
-                    CARR_ID               AS majorCode,
-                    PLAN_ID               AS progCode,
-                    NIVEL                 AS levelCode,
-                    ASIG_ID               AS coursCode,
-                    ASIGNATURA            AS coursDescription,
-                    STA_CBI_CODIGO        AS itemCode,
-                    CBI_DESCRIPCION       AS itemDescripcion,
-                    STA_RENDIMIENTO       AS stdPerformance,
-                    NRO_ALUMNOS           AS studentQty,
+                    INST                  AS "orgCode",
+                    CARR_ID               AS "majorCode",
+                    PLAN_ID               AS "progCode",
+                    NIVEL                 AS "levelCode",
+                    ASIG_ID               AS "coursCode",
+                    ASIGNATURA            AS "coursDescription",
+                    STA_CBI_CODIGO        AS "itemCode",
+                    CBI_DESCRIPCION       AS "itemDescripcion",
+                    STA_RENDIMIENTO       AS "stdPerformance",
+                    NRO_ALUMNOS           AS "studentQty",
                     STOCK                 AS stock,
-                    STOCK_IL              AS stockUnlimited,
+                    STOCK_IL              AS "stockUnlimited",
                     DEMANDA               AS demand,
-                    CUMPLIM_TIT           AS coverageTit,
-                    TIENE_STK_IL          AS haveStockUnlimited,
-                    CUMPLIM_REND          AS coveragePerformance,
-                    CUMPLIM_REND_AJUSTADO AS coveragePerformanceAdjusted,
+                    CUMPLIM_TIT           AS "coverageTit",
+                    TIENE_STK_IL          AS "haveStockUnlimited",
+                    CUMPLIM_REND          AS "coveragePerformance",
+                    CUMPLIM_REND_AJUSTADO AS "coveragePerformanceAdjusted",
                     CIUDAD                AS city,
                     'CALCULO NORMAL'      AS obs
             FROM (
@@ -578,20 +521,20 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
                         WHEN NRO_ALUMNOS = 0 AND STOCK > 0 THEN '100%' 
                         ELSE '0%'
                     END CUMPLIM_REND_AJUSTADO,
-                    @cityCode CIUDAD
+                    $4 CIUDAD
                 FROM(
                     SELECT
                         RES.*,
                         CASE
                             WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS = 1 THEN 1
-                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST = 'UNV' THEN FORMAT(ROUND([dbo].[get_round_minus05](NRO_ALUMNOS/10),0),'#########')
-                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST <> 'UNV' THEN FORMAT(ROUND([dbo].[get_round_minus05](NRO_ALUMNOS/20),0), '#########')
+                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST = 'UNV' THEN FORMAT(ROUND(get_round_minus05(NRO_ALUMNOS/10),0),'#########')
+                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST <> 'UNV' THEN FORMAT(ROUND(get_round_minus05(NRO_ALUMNOS/20),0), '#########')
                             WHEN STOCK_IL > 0 AND NRO_ALUMNOS > 0 THEN NRO_ALUMNOS
                             WHEN (STA_RENDIMIENTO = 0) OR (STA_RENDIMIENTO IS NULL) THEN 0
                             WHEN NRO_ALUMNOS = 0 AND STOCK > 0 THEN 0 
                             WHEN NRO_ALUMNOS = 0 THEN STOCK
                             ELSE
-                            FORMAT(ROUND([dbo].[get_round_minus05](NRO_ALUMNOS / STA_RENDIMIENTO),0),'#########')
+                            FORMAT(ROUND(get_round_minus05(NRO_ALUMNOS / STA_RENDIMIENTO),0),'#########')
                         END DEMANDA,
                         CASE
                             WHEN STOCK > 0 THEN '100%'
@@ -613,36 +556,36 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
                             [gaps_stdc_item_code] STA_CBI_CODIGO,
                             [item_description]    CBI_DESCRIPCION,
                             FORMAT(ROUND(COALESCE([gaps_stdc_performance], 0),0),'########') STA_RENDIMIENTO,
-                            [dbo].[get_max_students_dda](@idDda, @cityCode, ASIG_ID) NRO_ALUMNOS,
-                            [dbo].[get_stock_ciudad](@idStock, [gaps_stdc_item_code], @cityCode, '%') STOCK,
-                            [dbo].[get_stock_ciudad](@idStock, [gaps_stdc_item_code], @cityCode, 'IL') STOCK_IL
+                            get_max_students_dda($6, $4, ASIG_ID) NRO_ALUMNOS,
+                            get_stock_ciudad($7, [gaps_stdc_item_code], $4, '%') STOCK,
+                            get_stock_ciudad($7, [gaps_stdc_item_code], $4, 'IL') STOCK_IL
                         FROM (
                             SELECT 
-                                [major_org_code]    AS INST
+                                [major_org_code]    AS "INST"
                                 ,[prgd_major_code]   AS CARR_ID
                                 ,[prgd_prog_code]    AS PLAN_ID
-                                ,[prgd_level]        AS NIVEL
+                                ,[prgd_level]        AS "NIVEL"
                                 ,[cours_code]        AS ASIG_ID
-                                ,[cours_description] AS ASIGNATURA
-                                ,[cours_duration]    AS DURACION
-                            FROM [dbo].[tbl_programs_grids]
-                            JOIN [dbo].[tbl_majors] ON 
+                                ,[cours_description] AS "ASIGNATURA"
+                                ,[cours_duration]    AS "DURACION"
+                            FROM tbl_programs_grids
+                            JOIN tbl_majors ON 
                                 [major_code] = [prgd_major_code]
-                            LEFT JOIN [dbo].[tbl_courses] ON 
+                            LEFT JOIN tbl_courses ON 
                                 [cours_org_code] = [major_org_code] 
                             AND [cours_code] = [prgd_cours_code]
-                            WHERE [prgd_major_code] = coalesce(@majorCode,prgd_major_code) --'509' 
-                                AND [prgd_prog_code] = coalesce(@progCode,prgd_prog_code)  --'10'
+                            WHERE [prgd_major_code] = coalesce($2,prgd_major_code) --'509' 
+                                AND [prgd_prog_code] = coalesce($3,prgd_prog_code)  --'10'
                                 AND [prgd_level] > 0
                             ) MALLA
                             -- AQUI VA EL ESTANDAR HISTORIAL
-                            LEFT JOIN [dbo].[tbl_gaps_source_standard] ON
-                                [gaps_proc_id]  = @idStd --147 PKG_BRECHA_BIB.GET_DEFAULT_FUENTES_ID('STD')
+                            LEFT JOIN tbl_gaps_source_standard ON
+                                [gaps_proc_id]  = $5 --147 PKG_BRECHA_BIB.GET_DEFAULT_FUENTES_ID('STD')
                             AND [gaps_stdc_purc_code] = 'BIB' --?iAREA
                             AND [gaps_stdc_org_code] = MALLA.INST
                             AND [gaps_stdc_cours_code] = MALLA.ASIG_ID
                             --
-                            LEFT JOIN [dbo].[tbl_items] ON
+                            LEFT JOIN tbl_items ON
                                 [item_purc_code] = [gaps_stdc_purc_code]
                             AND [item_code] = [gaps_stdc_item_code]
                         ) RES
@@ -654,23 +597,13 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
       
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('orgCode',     sql.VarChar, orgCode ) 
-                            .input('majorCode',   sql.VarChar, majorCode ) 
-                            .input('progCode',    sql.VarChar, progCode )  
-                            .input('cityCode',    sql.VarChar, cityCode )   
-                            .input('idStd',       sql.VarChar, idStd )   
-                            .input('idDda',       sql.VarChar, idDda )   
-                            .input('idStock',     sql.VarChar, idStock )                                                      
-                            .query(sqlGetBookCoverage);
+        const result = await pool.query(sqlGetBookCoverage, [orgCode, majorCode, progCode, cityCode, idStd, idDda, idStock]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Cobertura Bibliograficas encontradas' : 'No se encontro Cobertura Bibliograficas',
-            bookCoverage: result?.recordset
+            message: result?.rows.length > 0 ? 'Cobertura Bibliograficas encontradas' : 'No se encontro Cobertura Bibliograficas',
+            bookCoverage: result?.rows
         };
 
     } catch (error) {
@@ -702,7 +635,7 @@ const createStandard = async ( {
     try {
         
         const sqlCreateStandard = `
-            INSERT INTO dbo.tbl_standards
+            INSERT INTO tbl_standards
                     (std_code
                     ,std_org_code
                     ,std_bu_code
@@ -715,36 +648,22 @@ const createStandard = async ( {
                     ,std_year
                     ,std_status)
             VALUES
-                    (@stdCode
-                    ,@stdOrgCode
-                    ,@stdBuCode
-                    ,@stdPurcCode
-                    ,@stdVersion
-                    ,@stdName
-                    ,DBO.fncGetDate()
-                    ,@stdCaccCode
-                    ,@stdSchoCode
-                    ,@stdYear
-                    ,@stdStatus)        
+                    ($1
+                    ,$2
+                    ,$3
+                    ,$4
+                    ,$5
+                    ,$6
+                    ,NOW()
+                    ,$7
+                    ,$8
+                    ,$9
+                    ,$10)        
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdCode',                   sql.VarChar,        stdCode )
-                            .input('stdOrgCode',                sql.VarChar,        stdOrgCode )
-                            .input('stdBuCode',                 sql.VarChar,        stdBuCode )
-                            .input('stdPurcCode',               sql.VarChar,        stdPurcCode )
-                            .input('stdVersion',                sql.Int,            stdVersion )
-                            .input('stdName',                   sql.VarChar,        stdName )
-                            .input('stdCaccCode',               sql.VarChar,        stdCaccCode )
-                            .input('stdSchoCode',               sql.VarChar,        stdSchoCode )
-                            .input('stdYear',                   sql.Int,            stdYear )
-                            .input('stdStatus',                 sql.VarChar,        stdStatus   )    
-
-                            .query(sqlCreateStandard);
+        const result = await pool.query(sqlCreateStandard, [stdCode, stdOrgCode, stdBuCode, stdPurcCode, stdVersion, stdName, stdCaccCode, stdSchoCode, stdYear, stdStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -775,23 +694,17 @@ const updateStandard = async(
     try {
         
         const sqlUpdateStandard = `
-        UPDATE dbo.tbl_standards 
+        UPDATE tbl_standards 
            SET ${columnSet}
         WHERE
-                std_code      = @stdCode
-            and std_purc_code = @stdPurcCode
-            and std_version   = @stdVersion
+                std_code      = $1
+            and std_purc_code = $2
+            and std_version   = $3
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdCode',     sql.VarChar, stdCode )
-                            .input('stdPurcCode', sql.VarChar, stdPurcCode )
-                            .input('stdVersion',  sql.Int, stdVersion )
-                            .query(sqlUpdateStandard);
+        const result = await pool.query(sqlUpdateStandard, [stdCode, stdPurcCode, stdVersion]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -811,25 +724,17 @@ const deleteStandard = async (
         
         const sqlDeleteStandard = `
             DELETE 
-              FROM dbo.tbl_standards
-             WHERE std_code      = @stdCode
-               and std_org_code  = @stdOrgCode
-               and std_bu_code   = @stdBuCode
-               and std_purc_code = @stdPurcCode
-               and std_version   = @stdVersion
+              FROM tbl_standards
+             WHERE std_code      = $1
+               and std_org_code  = $2
+               and std_bu_code   = $3
+               and std_purc_code = $4
+               and std_version   = $5
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdCode',     sql.VarChar, stdCode )
-                            .input('stdOrgCode',  sql.VarChar, stdOrgCode )
-                            .input('stdBuCode',   sql.VarChar, stdBuCode )
-                            .input('stdPurcCode', sql.VarChar, stdPurcCode )
-                            .input('stdVersion',  sql.Int, stdVersion )
-                            .query(sqlDeleteStandard);
+        const result = await pool.query(sqlDeleteStandard, [stdCode, stdOrgCode, stdBuCode, stdPurcCode, stdVersion]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {
@@ -851,27 +756,18 @@ const enableDisableStandard = async (
     try {
         
         const sqlEnableDisableStandard = `
-            UPDATE dbo.tbl_standards
-            SET std_status = @stdStatus
-             WHERE std_code      = @stdCode
-               and std_org_code  = @stdOrgCode
-               and std_bu_code   = @stdBuCode
-               and std_purc_code = @stdPurcCode
-               and std_version   = @stdVersion
+            UPDATE tbl_standards
+            SET std_status = $1
+             WHERE std_code      = $2
+               and std_org_code  = $3
+               and std_bu_code   = $4
+               and std_purc_code = $5
+               and std_version   = $6
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdStatus',   sql.VarChar, stdStatus )
-                            .input('stdCode',     sql.VarChar, stdCode )
-                            .input('stdOrgCode',  sql.VarChar, stdOrgCode )
-                            .input('stdBuCode',   sql.VarChar, stdBuCode )
-                            .input('stdPurcCode', sql.VarChar, stdPurcCode )
-                            .input('stdVersion',  sql.Int, stdVersion )
-                            .query(sqlEnableDisableStandard);
+        const result = await pool.query(sqlEnableDisableStandard, [stdStatus, stdCode, stdOrgCode, stdBuCode, stdPurcCode, stdVersion]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const userCampusExist = async (usrcUserId, usrcCampCode ) => {
@@ -7,28 +7,23 @@ const userCampusExist = async (usrcUserId, usrcCampCode ) => {
     let respuesta;
     try {
         const sqlUserCampusExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Usuario Sede ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_users_campus t1
-                    WHERE t1.usrc_user_id      =   @usrcUserId
-                      and t1.usrc_camp_code    =   @usrcCampCode
+                    WHERE t1.usrc_user_id      =   $1
+                      and t1.usrc_camp_code    =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usrcUserId',    sql.Int,usrcUserId )
-                            .input('usrcCampCode',  sql.VarChar,usrcCampCode )
-                            .query(sqlUserCampusExist);
+        const result = await pool.query(sqlUserCampusExist, [usrcUserId, usrcCampCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -57,16 +52,13 @@ const getAllUserCampus = async() => {
             order by t1.usrc_user_id,t1.usrc_camp_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllUserCampus);
+        const result = await pool.query(sqlGetAllUserCampus);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios Sede encontrados' : 'No se encontraron Usuarios-Sede',
-            userCampus: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios Sede encontrados' : 'No se encontraron Usuarios-Sede',
+            userCampus: result?.rows
         };
 
     } catch (error) {
@@ -93,19 +85,14 @@ const getUserCampusById = async(usrcUserId, usrcCampCode) => {
                 ,t1.usrc_creation_date
                 ,t1.usrc_status
             FROM tbl_users_campus t1
-            WHERE t1.usrc_user_id      =   @usrcUserId
-            and t1.usrc_camp_code      =   @usrcCampCode
+            WHERE t1.usrc_user_id      =   $1
+            and t1.usrc_camp_code      =   $2
             order by t1.usrc_user_id,t1.usrc_camp_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usrcUserId',    sql.Int,usrcUserId )
-                            .input('usrcCampCode',  sql.VarChar,usrcCampCode )
-                            .query(sqlGetUserCampusByID);
+        const result = await pool.query(sqlGetUserCampusByID, [usrcUserId, usrcCampCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -128,24 +115,20 @@ const getAllUserCampusByName = async(usrcName) => {
                 tbl_campus t3
             WHERE t1.usrc_user_id       =  t2.user_id  
              and t1.usrc_camp_code      =  t3.camp_code
-             and (UPPER(t2.user_first_name)   LIKE UPPER(CONCAT('%',@usrcName,'%')) OR
-                  UPPER(t3.camp_description)  LIKE UPPER(CONCAT('%',@usrcName,'%')) ) 
+             and (UPPER(t2.user_first_name)   LIKE UPPER(CONCAT('%',$1,'%')) OR
+                  UPPER(t3.camp_description)  LIKE UPPER(CONCAT('%',$1,'%')) ) 
             and t1.usrc_status = 'S' 
             order by t1.usrc_user_id,t1.usrc_camp_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usrcName', sql.VarChar,usrcName )
-                            .query(qryFindUserCampus);
+        const result = await pool.query(qryFindUserCampus, [usrcName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios Sede encontradas' : 'No se encontraron Usuarios-Sede',
-            userCampus: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios Sede encontradas' : 'No se encontraron Usuarios-Sede',
+            userCampus: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -173,21 +156,15 @@ const createUserCampus = async ( {
                     ,usrc_creation_date
                     ,usrc_status)
             VALUES
-                    (@usrcUserId
-                    ,@usrcCampCode
-                    ,DBO.fncGetDate()
-                    ,@usrcStatus)
+                    ($1
+                    ,$2
+                    ,NOW()
+                    ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usrcUserId',     sql.Int,     usrcUserId  )             
-                            .input('usrcCampCode',   sql.VarChar, usrcCampCode)
-                            .input('usrcStatus',     sql.VarChar, usrcStatus  )
-                            .query(sqlCreateUserCampus);
+        const result = await pool.query(sqlCreateUserCampus, [usrcUserId, usrcCampCode, usrcStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -215,18 +192,13 @@ const updateUserCampus = async( params,usrcUserId, usrcCampCode) => {
         const sqlUpdateUserCampus= `
         UPDATE tbl_users_campus
            SET ${columnSet}
-        WHERE usrc_user_id        =   @usrcUserId
-          and usrc_camp_code      =   @usrcCampCode
+        WHERE usrc_user_id        =   $1
+          and usrc_camp_code      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usrcUserId',       sql.Int,     usrcUserId   )             
-                            .input('usrcCampCode',     sql.VarChar, usrcCampCode )
-                            .query(sqlUpdateUserCampus);
+        const result = await pool.query(sqlUpdateUserCampus, [usrcUserId, usrcCampCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -241,18 +213,13 @@ const deleteUserCampus = async (usrcUserId, usrcCampCode) => {
         const sqlDeleteUserCampus = `
         DELETE 
           FROM tbl_users_campus
-        WHERE usrc_user_id        =   @usrcUserId
-          and usrc_camp_code      =   @usrcCampCode
+        WHERE usrc_user_id        =   $1
+          and usrc_camp_code      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usrcUserId',       sql.VarChar, usrcUserId   )             
-                            .input('usrcCampCode',     sql.VarChar, usrcCampCode )
-                            .query(sqlDeleteUserCampus);
+        const result = await pool.query(sqlDeleteUserCampus, [usrcUserId, usrcCampCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

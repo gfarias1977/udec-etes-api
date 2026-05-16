@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const programExist = async ( progCode, progMajorCode ) => {
@@ -7,28 +7,23 @@ const programExist = async ( progCode, progMajorCode ) => {
     let respuesta;
     try {
         const sqlProgramExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Plan ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_programs t1
-                    WHERE t1.prog_code       = @progCode
-                      AND t1.prog_major_code = @progMajorCode
+                    WHERE t1.prog_code       = $1
+                      AND t1.prog_major_code = $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('progCode',       sql.VarChar, progCode )
-                            .input('progMajorCode',  sql.VarChar, progMajorCode )
-                            .query(sqlProgramExists);
+        const result = await pool.query(sqlProgramExists, [progCode, progMajorCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -49,32 +44,29 @@ const getAllPrograms = async() => {
     try {
         const sqlGetAllPrograms = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.prog_code, t1.prog_major_code ASC) AS id
-                ,t1.prog_code           AS progCode          
-                ,t1.prog_major_code     AS progMajorCode       
-                ,t1.prog_prot_code      AS progProtCode      
-                ,t1.prog_prop_code      AS progPropCode       
-                ,t1.prog_year           AS progYear             
-                ,t1.prog_major_name     AS progMajorName       
-                ,t1.prog_title          AS progTitle           
-                ,t1.prog_degre          AS progDegre            
-                ,t1.prog_bachelor       AS progBachelor        
-                ,t1.prog_level          AS progLevel                              
-                ,t1.prog_creation_date  AS progCreationDate     
-                ,t1.prog_status         AS progStatus           
-            FROM dbo.tbl_programs t1
+                ,t1.prog_code           AS "progCode"          
+                ,t1.prog_major_code     AS "progMajorCode"       
+                ,t1.prog_prot_code      AS "progProtCode"      
+                ,t1.prog_prop_code      AS "progPropCode"       
+                ,t1.prog_year           AS "progYear"             
+                ,t1.prog_major_name     AS "progMajorName"       
+                ,t1.prog_title          AS "progTitle"           
+                ,t1.prog_degre          AS "progDegre"            
+                ,t1.prog_bachelor       AS "progBachelor"        
+                ,t1.prog_level          AS "progLevel"                              
+                ,t1.prog_creation_date  AS "progCreationDate"     
+                ,t1.prog_status         AS "progStatus"           
+            FROM tbl_programs t1
             ORDER BY t1.prog_code, t1.prog_major_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllPrograms);
+        const result = await pool.query(sqlGetAllPrograms);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Planes encontrados' : 'No se encontraron Planes',
-            programs: result?.recordset
+            message: result?.rows.length > 0 ? 'Planes encontrados' : 'No se encontraron Planes',
+            programs: result?.rows
         };
 
     } catch (error) {
@@ -96,32 +88,27 @@ const getProgramById = async( progCode, progMajorCode ) => {
         
         const sqlGetProgramByID = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.prog_code ASC) AS id
-                ,t1.prog_code             AS progCode         
-                ,t1.prog_major_code       AS progMajorCode     
-                ,t1.prog_prot_code        AS progProtCode     
-                ,t1.prog_prop_code        AS progPropCode     
-                ,t1.prog_year             AS progYear          
-                ,t1.prog_major_name       AS progMajorName     
-                ,t1.prog_title            AS progTitle         
-                ,t1.prog_degre            AS progDegre        
-                ,t1.prog_bachelor         AS progBachelor     
-                ,t1.prog_level            AS progLevel               
-                ,t1.prog_creation_date    AS progCreationDate  
-                ,t1.prog_status           AS progStatus        
-            FROM dbo.tbl_programs t1
-            WHERE t1.prog_code = @progCode
-              AND t1.prog_major_code = @progMajorCode
+                ,t1.prog_code             AS "progCode"         
+                ,t1.prog_major_code       AS "progMajorCode"     
+                ,t1.prog_prot_code        AS "progProtCode"     
+                ,t1.prog_prop_code        AS "progPropCode"     
+                ,t1.prog_year             AS "progYear"          
+                ,t1.prog_major_name       AS "progMajorName"     
+                ,t1.prog_title            AS "progTitle"         
+                ,t1.prog_degre            AS "progDegre"        
+                ,t1.prog_bachelor         AS "progBachelor"     
+                ,t1.prog_level            AS "progLevel"               
+                ,t1.prog_creation_date    AS "progCreationDate"  
+                ,t1.prog_status           AS "progStatus"        
+            FROM tbl_programs t1
+            WHERE t1.prog_code = $1
+              AND t1.prog_major_code = $2
             ORDER BY t1.prog_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('progCode', sql.VarChar, progCode )                            
-                            .input('progMajorCode', sql.VarChar, progMajorCode )                            
-                            .query(sqlGetProgramByID);
+        const result = await pool.query(sqlGetProgramByID, [progCode, progMajorCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -136,36 +123,32 @@ const getAllProgramsByName = async(progName) => {
     `
 
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.prog_code ASC) AS id
-            ,t1.prog_code           AS progCode         
-            ,t1.prog_major_code     AS progMajorCode    
-            ,t1.prog_prot_code      AS progProtCode     
-            ,t1.prog_prop_code      AS progPropCode      
-            ,t1.prog_year           AS progYear         
-            ,t1.prog_major_name     AS progMajorName     
-            ,t1.prog_title          AS progTitle         
-            ,t1.prog_degre          AS progDegre         
-            ,t1.prog_bachelor       AS progBachelor      
-            ,t1.prog_level          AS progLevel            
-            ,t1.prog_creation_date  AS progCreationDate   
-            ,t1.prog_status         AS progStatus       
-        FROM dbo.tbl_programs t1
-        WHERE UPPER(t1.prog_major_name)  LIKE UPPER(CONCAT('%',@progName,'%'))
+            ,t1.prog_code           AS "progCode"         
+            ,t1.prog_major_code     AS "progMajorCode"    
+            ,t1.prog_prot_code      AS "progProtCode"     
+            ,t1.prog_prop_code      AS "progPropCode"      
+            ,t1.prog_year           AS "progYear"         
+            ,t1.prog_major_name     AS "progMajorName"     
+            ,t1.prog_title          AS "progTitle"         
+            ,t1.prog_degre          AS "progDegre"         
+            ,t1.prog_bachelor       AS "progBachelor"      
+            ,t1.prog_level          AS "progLevel"            
+            ,t1.prog_creation_date  AS "progCreationDate"   
+            ,t1.prog_status         AS "progStatus"       
+        FROM tbl_programs t1
+        WHERE UPPER(t1.prog_major_name)  LIKE UPPER(CONCAT('%',$1,'%'))
         AND t1.prog_status = 'S'
         ORDER BY t1.prog_code    
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('progName', sql.VarChar, progName )
-                            .query(qryFindPrograms);
+        const result = await pool.query(qryFindPrograms, [progName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Planes encontradas' : 'No se encontraron Planes',
-            programs: result?.recordset
+            message: result?.rows.length > 0 ? 'Planes encontradas' : 'No se encontraron Planes',
+            programs: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -197,7 +180,7 @@ const createProgram = async ( {
     try {
         
         const sqlCreateProgram = `
-                INSERT INTO dbo.tbl_programs
+                INSERT INTO tbl_programs
                         (prog_code
                         ,prog_major_code
                         ,prog_prot_code
@@ -212,37 +195,23 @@ const createProgram = async ( {
                         ,prog_status)
                 VALUES
                         (
-                         @progCode
-                        ,@progMajorCode
-                        ,@progProtCode
-                        ,@progPropCode
-                        ,@progYear
-                        ,@progMajorName
-                        ,@progTitle
-                        ,@progDegre
-                        ,@progBachelor
-                        ,@progLevel            
-                        ,DBO.fncGetDate()
-                        ,@progStatus)    
+                         $1
+                        ,$2
+                        ,$3
+                        ,$4
+                        ,$5
+                        ,$6
+                        ,$7
+                        ,$8
+                        ,$9
+                        ,$10            
+                        ,NOW()
+                        ,$11)    
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('progCode',        sql.VarChar,progCode     )        
-                            .input('progMajorCode',   sql.VarChar,progMajorCode)  
-                            .input('progProtCode',    sql.VarChar,progProtCode )   
-                            .input('progPropCode',    sql.VarChar,progPropCode )    
-                            .input('progYear',        sql.VarChar,progYear     )
-                            .input('progMajorName',   sql.VarChar,progMajorName)    
-                            .input('progTitle',       sql.VarChar,progTitle    )    
-                            .input('progDegre',       sql.VarChar,progDegre    )    
-                            .input('progBachelor',    sql.VarChar,progBachelor )    
-                            .input('progLevel',       sql.VarChar,progLevel    )    
-                            .input('progStatus',      sql.VarChar,progStatus   )    
-                            .query(sqlCreateProgram);
+        const result = await pool.query(sqlCreateProgram, [progCode, progMajorCode, progProtCode, progPropCode, progYear, progMajorName, progTitle, progDegre, progBachelor, progLevel, progStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -271,18 +240,13 @@ const updateProgram = async( params, progCode, progMajorCode) => {
         const sqlUpdateProgram = `
         UPDATE tbl_programs
            SET ${columnSet}
-         WHERE prog_code       = @progCode
-           AND prog_major_code = @progMajorCode
+         WHERE prog_code       = $1
+           AND prog_major_code = $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('progCode',      sql.VarChar, progCode )
-                            .input('progMajorCode', sql.VarChar, progMajorCode )   
-                            .query(sqlUpdateProgram);
+        const result = await pool.query(sqlUpdateProgram, [progCode, progMajorCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -297,18 +261,13 @@ const deleteProgram = async ( progCode , progMajorCode) => {
         const sqlDeleteProgram = `
         DELETE 
           FROM tbl_programs
-         WHERE prog_code       = @progCode
-           AND prog_major_code = @progMajorCode 
+         WHERE prog_code       = $1
+           AND prog_major_code = $2 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('progCode',       sql.VarChar, progCode      )
-                            .input('progMajorCode',  sql.VarChar, progMajorCode )
-                            .query(sqlDeleteProgram);
+        const result = await pool.query(sqlDeleteProgram, [progCode, progMajorCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

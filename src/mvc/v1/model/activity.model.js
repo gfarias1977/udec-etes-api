@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const activityExists = async ( actCode ) => {
@@ -7,26 +7,22 @@ const activityExists = async ( actCode ) => {
     let respuesta;
     try {
         const sqlActivityExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Actividad ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_activities t1
-                    WHERE t1.act_code      =   @actCode
+                    WHERE t1.act_code      =   $1
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('actCode',  sql.VarChar, actCode )
-                            .query(sqlActivityExists);
+        const result = await pool.query(sqlActivityExists, [actCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,24 +43,21 @@ const getAllActivities = async() => {
     try {
         const sqlGetAllActivities = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.act_code ASC) AS id 
-                ,t1.act_code           AS   actCode
-                ,t1.act_name           AS   actName
-                ,t1.act_creation_date  AS   actCreationDate
-                ,t1.act_status         AS   actStatus
-            FROM dbo.tbl_activities t1
+                ,t1.act_code           AS "actCode"
+                ,t1.act_name           AS "actName"
+                ,t1.act_creation_date  AS "actCreationDate"
+                ,t1.act_status         AS "actStatus"
+            FROM tbl_activities t1
             order by  t1.act_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllActivities);
+        const result = await pool.query(sqlGetAllActivities);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Actividades encontrados' : 'No se encontraron Actividades',
-            activities: result?.recordset
+            message: result?.rows.length > 0 ? 'Actividades encontrados' : 'No se encontraron Actividades',
+            activities: result?.rows
         };
 
     } catch (error) {
@@ -86,22 +79,18 @@ const getActivityById = async( actCode ) => {
         
         const sqlGetActivityByID = 
         `   SELECT ROW_NUMBER() OVER(ORDER BY  t1.act_code ASC) AS id 
-                ,t1.act_code           AS   actCode
-                ,t1.act_name           AS   actName
-                ,t1.act_creation_date  AS   actCreationDate
-                ,t1.act_status         AS   actStatus
-            FROM dbo.tbl_activities t1
-            WHERE t1.act_code = @actCode
+                ,t1.act_code           AS "actCode"
+                ,t1.act_name           AS "actName"
+                ,t1.act_creation_date  AS "actCreationDate"
+                ,t1.act_status         AS "actStatus"
+            FROM tbl_activities t1
+            WHERE t1.act_code = $1
             order by  t1.act_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('actCode', sql.VarChar, actCode )                            
-                            .query(sqlGetActivityByID);
+        const result = await pool.query(sqlGetActivityByID, [actCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -115,28 +104,24 @@ const getAllActivitiesByName = async(actName) => {
     const qryFindActivitys = 
     `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.act_code ASC) AS id 
-            ,t1.act_code           AS   actCode
-            ,t1.act_name           AS   actName
-            ,t1.act_creation_date  AS   actCreationDate
-            ,t1.act_status         AS   actStatus
-        FROM dbo.tbl_activities t1
-        WHERE UPPER(t1.act_name)  LIKE UPPER(CONCAT('%',@actName,'%'))
+            ,t1.act_code           AS "actCode"
+            ,t1.act_name           AS "actName"
+            ,t1.act_creation_date  AS "actCreationDate"
+            ,t1.act_status         AS "actStatus"
+        FROM tbl_activities t1
+        WHERE UPPER(t1.act_name)  LIKE UPPER(CONCAT('%',$1,'%'))
           AND t1.act_status = 'S'
         order by  t1.act_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('actName', sql.VarChar, actName )
-                            .query(qryFindActivitys);
+        const result = await pool.query(qryFindActivitys, [actName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Actividades encontrados' : 'No se encontraron Actividades',
-            activities: result?.recordset
+            message: result?.rows.length > 0 ? 'Actividades encontrados' : 'No se encontraron Actividades',
+            activities: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -164,22 +149,16 @@ const createActivity = async ( {
            ,act_creation_date
            ,act_status)
         VALUES(
-            UPPER(@actCode),
-            UPPER(@actName),
-            DBO.fncGetDate(),
-            UPPER(@actStatus)
+            UPPER($1),
+            UPPER($2),
+            NOW(),
+            UPPER($3)
         )      
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('actCode',   sql.VarChar,  actCode )                            
-                            .input('actName',   sql.VarChar,  actName )
-                            .input('actStatus', sql.VarChar,  actStatus )
-                            .query(sqlCreateActivity);
+        const result = await pool.query(sqlCreateActivity, [actCode, actName, actStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -208,16 +187,12 @@ const updateActivity = async( params, actCode ) => {
         const sqlUpdateActivity = `
         UPDATE tbl_activities
            SET ${columnSet}
-         WHERE act_code = @actCode
+         WHERE act_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('actCode',     sql.VarChar, actCode )
-                            .query(sqlUpdateActivity);
+        const result = await pool.query(sqlUpdateActivity, [actCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -232,16 +207,12 @@ const deleteActivity = async ( actCode ) => {
         const sqlDeleteActivity = `
         DELETE 
           FROM tbl_activities
-         WHERE act_code = @actCode
+         WHERE act_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('actCode',     sql.VarChar, actCode )
-                            .query(sqlDeleteActivity);
+        const result = await pool.query(sqlDeleteActivity, [actCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

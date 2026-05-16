@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const majorOfferExist = async ( maofCampCode,maofAcademicYear,maofMajorCode,maofPlanCode,maofWktCode ) => {
@@ -7,34 +7,26 @@ const majorOfferExist = async ( maofCampCode,maofAcademicYear,maofMajorCode,maof
     let respuesta;
     try {
         const sqlMajorOfferExists = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Carrera Oferta ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_majors_offer t1
-                    WHERE t1.maof_camp_code     = @maofCampCode
-                      and t1.maof_academic_year = @maofAcademicYear
-                      and t1.maof_major_code    = @maofMajorCode
-                      and t1.maof_plan_code     = @maofPlanCode
-                      and t1.maof_wkt_code      = @maofWktCode
+                    WHERE t1.maof_camp_code     = $1
+                      and t1.maof_academic_year = $2
+                      and t1.maof_major_code    = $3
+                      and t1.maof_plan_code     = $4
+                      and t1.maof_wkt_code      = $5
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('maofCampCode',      sql.VarChar, maofCampCode )
-                            .input('maofAcademicYear',  sql.Int, maofAcademicYear )
-                            .input('maofMajorCode',    sql.VarChar, maofMajorCode )
-                            .input('maofPlanCode',      sql.VarChar, maofPlanCode )
-                            .input('maofWktCode',       sql.VarChar, maofWktCode )
-                            .query(sqlMajorOfferExists);
+        const result = await pool.query(sqlMajorOfferExists, [maofCampCode, maofAcademicYear, maofMajorCode, maofPlanCode, maofWktCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -63,21 +55,18 @@ const getAllMajorOffers = async() => {
                 ,t1.maof_min
                 ,t1.maof_offer
                 ,t1.maof_offer_type
-            FROM dbo.tbl_majors_offer t1
+            FROM tbl_majors_offer t1
             order by t1.maof_academic_year, t1.maof_camp_code, t1.maof_major_code, t1.maof_plan_code, maof_wkt_code ASC
   
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllMajorOffers);
+        const result = await pool.query(sqlGetAllMajorOffers);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Carreras Oferta encontradas' : 'No se encontraron Carreras Oferta',
-            majorOffers: result?.recordset
+            message: result?.rows.length > 0 ? 'Carreras Oferta encontradas' : 'No se encontraron Carreras Oferta',
+            majorOffers: result?.rows
         };
 
     } catch (error) {
@@ -107,26 +96,18 @@ const getMajorOfferById = async(maofCampCode,maofAcademicYear,maofMajorCode,maof
                 ,t1.maof_min
                 ,t1.maof_offer
                 ,t1.maof_offer_type
-            FROM dbo.tbl_majors_offer t1
-            WHERE t1.maof_camp_code     = @maofCampCode
-              and t1.maof_academic_year = @maofAcademicYear
-              and t1.maof_major_code    = @maofMajorCode
-              and t1.maof_plan_code     = @maofPlanCode
-              and t1.maof_wkt_code      = @maofWktCode
+            FROM tbl_majors_offer t1
+            WHERE t1.maof_camp_code     = $1
+              and t1.maof_academic_year = $2
+              and t1.maof_major_code    = $3
+              and t1.maof_plan_code     = $4
+              and t1.maof_wkt_code      = $5
             order by t1.maof_academic_year, t1.maof_camp_code, t1.maof_major_code, t1.maof_plan_code, maof_wkt_code ASC
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('maofCampCode',      sql.VarChar, maofCampCode )
-                            .input('maofAcademicYear',  sql.Int, maofAcademicYear )
-                            .input('maofMajorCode',    sql.VarChar, maofMajorCode )
-                            .input('maofPlanCode',      sql.VarChar, maofPlanCode )
-                            .input('maofWktCode',       sql.VarChar, maofWktCode )                        
-                            .query(sqlGetMajorOfferByID);
+        const result = await pool.query(sqlGetMajorOfferByID, [maofCampCode, maofAcademicYear, maofMajorCode, maofPlanCode, maofWktCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -160,30 +141,19 @@ const createMajorOffer = async ( {
                     ,maof_offer
                     ,maof_offer_type)
             VALUES
-                    (@maofCampCode     
-                    ,@maofAcademicYear 
-                    ,@maofMajorCode    
-                    ,@maofPlanCode    
-                    ,@maofWktCode      
-                    ,@maofMin          
-                    ,@maofOffer        
-                    ,@maofOfferType )  
+                    ($1     
+                    ,$2 
+                    ,$3    
+                    ,$4    
+                    ,$5      
+                    ,$6          
+                    ,$7        
+                    ,$8 )  
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('maofCampCode',      sql.VarChar, maofCampCode )
-                            .input('maofAcademicYear',  sql.VarChar, maofAcademicYear )
-                            .input('maofMajorCode',    sql.VarChar, maofMajorCode )
-                            .input('maofPlanCode',      sql.VarChar, maofPlanCode )
-                            .input('maofWktCode',       sql.VarChar, maofWktCode )       
-                            .input('maofMin',           sql.Int, maofMin )       
-                            .input('maofOffer',         sql.Int, maofOffer )       
-                            .input('maofOfferType',     sql.VarChar, maofOfferType )       
-                            .query(sqlCreateMajorOffer);
+        const result = await pool.query(sqlCreateMajorOffer, [maofCampCode, maofAcademicYear, maofMajorCode, maofPlanCode, maofWktCode, maofMin, maofOffer, maofOfferType]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -212,24 +182,16 @@ const updateMajorOffer = async( params, maofCampCode,maofAcademicYear,maofMajorC
         const sqlUpdateMajorOffer = `
         UPDATE tbl_majors_offer
            SET ${columnSet}
-        WHERE  maof_camp_code     = @maofCampCode
-           and maof_academic_year = @maofAcademicYear
-           and maof_major_code    = @maofMajorCode
-           and maof_plan_code     = @maofPlanCode
-           and maof_wkt_code      = @maofWktCode
+        WHERE  maof_camp_code     = $1
+           and maof_academic_year = $2
+           and maof_major_code    = $3
+           and maof_plan_code     = $4
+           and maof_wkt_code      = $5
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('maofCampCode',      sql.VarChar, maofCampCode )
-                            .input('maofAcademicYear',  sql.Int, maofAcademicYear )
-                            .input('maofMajorCode',    sql.VarChar, maofMajorCode )
-                            .input('maofPlanCode',      sql.VarChar, maofPlanCode )
-                            .input('maofWktCode',       sql.VarChar, maofWktCode )     
-                            .query(sqlUpdateMajorOffer);
+        const result = await pool.query(sqlUpdateMajorOffer, [maofCampCode, maofAcademicYear, maofMajorCode, maofPlanCode, maofWktCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -244,24 +206,16 @@ const deleteMajorOffer = async ( maofCampCode,maofAcademicYear,maofMajorCode,mao
         const sqlDeleteMajorOffer = `
         DELETE 
           FROM tbl_majors_offer
-        WHERE maof_camp_code    = @maofCampCode
-          and maof_academic_year = @maofAcademicYear
-          and maof_major_code    = @maofMajorCode
-          and maof_plan_code     = @maofPlanCode
-          and maof_wkt_code      = @maofWktCode
+        WHERE maof_camp_code    = $1
+          and maof_academic_year = $2
+          and maof_major_code    = $3
+          and maof_plan_code     = $4
+          and maof_wkt_code      = $5
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('maofCampCode',      sql.VarChar, maofCampCode )
-                            .input('maofAcademicYear',  sql.VarChar, maofAcademicYear )
-                            .input('maofMajorCode',    sql.VarChar, maofMajorCode )
-                            .input('maofPlanCode',      sql.VarChar, maofPlanCode )
-                            .input('maofWktCode',       sql.VarChar, maofWktCode ) 
-                            .query(sqlDeleteMajorOffer);
+        const result = await pool.query(sqlDeleteMajorOffer, [maofCampCode, maofAcademicYear, maofMajorCode, maofPlanCode, maofWktCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

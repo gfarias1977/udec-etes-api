@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const purchaseAreaExists = async ( purcCode ) => {
@@ -7,26 +7,22 @@ const purchaseAreaExists = async ( purcCode ) => {
     let respuesta;
     try {
         const sqlPurchaseAreaExists = `
-          SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+          SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                   SELECT 'Area de compra ya existe.'  AS  validacion,
-                         COUNT(*) AS TOTAL
+                         COUNT(*) AS "TOTAL"
                     FROM tbl_purchase_areas t1
-                   WHERE t1.purc_code     =   @purcCode
+                   WHERE t1.purc_code     =   $1
                  ) t10
            WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode',  sql.VarChar, purcCode )
-                            .query(sqlPurchaseAreaExists);
+        const result = await pool.query(sqlPurchaseAreaExists, [purcCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -47,25 +43,22 @@ const getAllPurchaseAreas = async() => {
     try {
         const sqlGetAllPurchaseAreas = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.purc_code ASC) AS id
-                ,t1.purc_code           AS purcCode
-                ,t1.purc_name           AS purcName
-                ,t1.purc_description    AS purcDescription
-                ,t1.purc_creation_date  AS purcCreationDate
-                ,t1.purc_status         AS purcStatus
-            FROM dbo.tbl_purchase_areas t1
+                ,t1.purc_code           AS "purcCode"
+                ,t1.purc_name           AS "purcName"
+                ,t1.purc_description    AS "purcDescription"
+                ,t1.purc_creation_date  AS "purcCreationDate"
+                ,t1.purc_status         AS "purcStatus"
+            FROM tbl_purchase_areas t1
             ORDER BY t1.purc_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllPurchaseAreas);
+        const result = await pool.query(sqlGetAllPurchaseAreas);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Areas de compra encontradas' : 'No se encontraron Areas de Compras',
-            purchaseAreas: result?.recordset
+            message: result?.rows.length > 0 ? 'Areas de compra encontradas' : 'No se encontraron Areas de Compras',
+            purchaseAreas: result?.rows
         };
 
     } catch (error) {
@@ -87,23 +80,19 @@ const getPurchaseAreaById = async( purcCode ) => {
         
         const sqlGetPurchaseAreaByID = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.purc_code ASC) AS id
-                ,t1.purc_code          AS purcCode
-                ,t1.purc_name          AS purcName
-                ,t1.purc_description   AS purcDescription
-                ,t1.purc_creation_date AS purcCreationDate
-                ,t1.purc_status        AS purcStatus
-            FROM dbo.tbl_purchase_areas t1
-            WHERE t1.purc_code = @purcCode
+                ,t1.purc_code          AS "purcCode"
+                ,t1.purc_name          AS "purcName"
+                ,t1.purc_description   AS "purcDescription"
+                ,t1.purc_creation_date AS "purcCreationDate"
+                ,t1.purc_status        AS "purcStatus"
+            FROM tbl_purchase_areas t1
+            WHERE t1.purc_code = $1
             ORDER BY t1.purc_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode', sql.VarChar, purcCode )                            
-                            .query(sqlGetPurchaseAreaByID);
+        const result = await pool.query(sqlGetPurchaseAreaByID, [purcCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -117,29 +106,25 @@ const getAllPurchaseAreasByName = async(purcName) => {
     const qryFindPurchaseAreas = 
     `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.purc_code ASC) AS id
-            ,t1.purc_code            AS purcCode 
-            ,t1.purc_name            AS purcName
-            ,t1.purc_description     AS purcDescription
-            ,t1.purc_creation_date   AS purcCreationDate
-            ,t1.purc_status          AS purcStatus
-        FROM dbo.tbl_purchase_areas t1
-        WHERE UPPER(t1.purc_name)  LIKE UPPER(CONCAT('%',@purcName,'%'))
+            ,t1.purc_code            AS "purcCode" 
+            ,t1.purc_name            AS "purcName"
+            ,t1.purc_description     AS "purcDescription"
+            ,t1.purc_creation_date   AS "purcCreationDate"
+            ,t1.purc_status          AS "purcStatus"
+        FROM tbl_purchase_areas t1
+        WHERE UPPER(t1.purc_name)  LIKE UPPER(CONCAT('%',$1,'%'))
             AND t1.purc_status = 'S'
         ORDER BY t1.purc_code
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcName', sql.VarChar, purcName )
-                            .query(qryFindPurchaseAreas);
+        const result = await pool.query(qryFindPurchaseAreas, [purcName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Areas de Compra encontradas' : 'No se encontraron Areas de Compra',
-            purchaseAreas: result?.recordset
+            message: result?.rows.length > 0 ? 'Areas de Compra encontradas' : 'No se encontraron Areas de Compra',
+            purchaseAreas: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -170,23 +155,16 @@ const createPurchaseArea = async ( {
                     ,purc_creation_date
                     ,purc_status)
             VALUES
-                    (@purcCode
-                    ,@purcName
-                    ,@purcDescription
-                    ,DBO.fncGetDate()
-                    ,@purcStatus)      
+                    ($1
+                    ,$2
+                    ,$3
+                    ,NOW()
+                    ,$4)      
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode',          sql.VarChar,  purcCode )                            
-                            .input('purcName',          sql.VarChar,  purcName )
-                            .input('purcDescription',   sql.VarChar,  purcDescription )                            
-                            .input('purcStatus',        sql.VarChar,  purcStatus )
-                            .query(sqlCreatePurchaseArea);
+        const result = await pool.query(sqlCreatePurchaseArea, [purcCode, purcName, purcDescription, purcStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -215,16 +193,12 @@ const updatePurchaseArea = async( params, purcCode ) => {
         const sqlUpdatePurchaseArea = `
         UPDATE tbl_purchase_areas
            SET ${columnSet}
-         WHERE purc_code = @purcCode
+         WHERE purc_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode', sql.VarChar, purcCode )
-                            .query(sqlUpdatePurchaseArea);
+        const result = await pool.query(sqlUpdatePurchaseArea, [purcCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -239,16 +213,12 @@ const deletePurchaseArea = async ( purcCode ) => {
         const sqlDeletePurchaseArea = `
         DELETE 
           FROM tbl_purchase_areas
-         WHERE purc_code = @purcCode
+         WHERE purc_code = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('purcCode',     sql.VarChar, purcCode )
-                            .query(sqlDeletePurchaseArea);
+        const result = await pool.query(sqlDeletePurchaseArea, [purcCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

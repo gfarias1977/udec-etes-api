@@ -19,7 +19,7 @@ async function startup() {
         process.exit(1); // Non-zero failure code
     };
     try {
-        console.log(`Inicializando módulo Base de Datos en: ${process.env.DB_SERVER}`);
+        console.log(`Inicializando módulo Base de Datos en: ${process.env.DATABASE_URL ? '(PostgreSQL/Neon)' : 'undefined'}`);
 
     } catch (err) {
         

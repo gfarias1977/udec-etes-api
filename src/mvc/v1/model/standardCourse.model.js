@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const standardCourseExist = async ( stdcStdCode, stdcOrgCode, stdcBuCode, stdcStdVersion, stdcCoursCode, stdcRlayCode, stdcPurcCode,stdcItemCode,stdcSchoCode ) => {
@@ -7,42 +7,30 @@ const standardCourseExist = async ( stdcStdCode, stdcOrgCode, stdcBuCode, stdcSt
     let respuesta;
     try {
         const sqlStandardCourseExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
             FROM (
                 SELECT 'Estandar Asignatura ya existe.'  AS  validacion,
                         count(*) AS total
                     FROM tbl_standards_courses t1
-                WHERE   t1.stdc_std_code      =   @stdcStdCode
-                    AND t1.stdc_org_code      =   @stdcOrgCode
-                    AND t1.stdc_bu_code       =   @stdcBuCode
-                    AND t1.stdc_std_version   =   @stdcStdVersion
-                    AND t1.stdc_cours_code    =   @stdcCoursCode
-                    AND t1.stdc_rlay_code     =   @stdcRlayCode
-                    AND t1.stdc_purc_code     =   @stdcPurcCode
-                    AND t1.stdc_item_code     =   @stdcItemCode
-                    AND t1.stdc_scho_code     =   @stdcSchoCode
+                WHERE   t1.stdc_std_code      =   $1
+                    AND t1.stdc_org_code      =   $2
+                    AND t1.stdc_bu_code       =   $3
+                    AND t1.stdc_std_version   =   $4
+                    AND t1.stdc_cours_code    =   $5
+                    AND t1.stdc_rlay_code     =   $6
+                    AND t1.stdc_purc_code     =   $7
+                    AND t1.stdc_item_code     =   $8
+                    AND t1.stdc_scho_code     =   $9
                 ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',     sql.VarChar, stdcStdCode     )
-                            .input('stdcOrgCode',     sql.VarChar, stdcOrgCode     )
-                            .input('stdcBuCode',      sql.VarChar, stdcBuCode      )
-                            .input('stdcStdVersion',  sql.Int,     stdcStdVersion  )
-                            .input('stdcCoursCode',   sql.VarChar, stdcCoursCode   )
-                            .input('stdcRlayCode',    sql.VarChar, stdcRlayCode    )
-                            .input('stdcPurcCode',    sql.VarChar, stdcPurcCode    )
-                            .input('stdcItemCode',    sql.Int,     stdcItemCode    )
-                            .input('stdcSchoCode',    sql.VarChar, stdcSchoCode    )
-                            .query(sqlStandardCourseExist);
+        const result = await pool.query(sqlStandardCourseExist, [stdcStdCode, stdcOrgCode, stdcBuCode, stdcStdVersion, stdcCoursCode, stdcRlayCode, stdcPurcCode, stdcItemCode, stdcSchoCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -64,66 +52,63 @@ const getAllStandardCourses = async( ) => {
         const sqlGetAllStandardCourses = `
                 SELECT        
                     ROW_NUMBER() OVER(ORDER BY  t1.stdc_std_code ASC) AS id
-                    ,t1.stdc_std_code                 AS    stdcStdCode               
-                    ,t1.stdc_org_code				  AS 	stdcOrgCode				
-                    ,t3.org_description				  AS 	stdcOrgDescription				
-                    ,t1.stdc_bu_code				  AS 	stdcBuCode				
-                    ,t2.bu_name						  AS 	stdcBuName						
-                    ,t1.stdc_std_version			  AS 	stdcStdVersion			
-                    ,t1.stdc_cours_code				  AS 	stdcCoursCode				
-                    ,t4.cours_description			  AS 	stdcCoursDescription			
-                    ,t1.stdc_rlay_code				  AS 	stdcRlayCode				
-                    ,t6.rlay_description			  AS 	stdcRlayDescription			
-                    ,t1.stdc_purc_code				  AS 	stdcPurcCode				
-                    ,t7.purc_name					  AS 	stdcPurcName					
-                    ,t1.stdc_item_code				  AS 	stdcItemCode				
-                    ,t8.item_description			  AS 	stdcItemDescription			
-                    ,t9.itmc_name					  AS 	stdcItmcName					
-                    ,t10.itmc_name              	  AS 	stdcItmcParent	
-                    ,t1.stdc_scho_code				  AS 	stdcSchoCode				
-                    ,t5.scho_description			  AS 	stdcSchoDescription			
-                    ,t1.stdc_performance			  AS 	stdcPerformance			
-                    ,t1.stdc_renewal_cicle			  AS 	stdcRenewalCicle			
-                    ,t1.stdc_maintenance_cicle		  AS 	stdcMaintenanceCicle		
-                    ,t1.stdc_detail					  AS 	stdcDetail					
-                    ,t1.stdc_status					  AS 	stdcStatus	
+                    ,t1.stdc_std_code                 AS "stdcStdCode"               
+                    ,t1.stdc_org_code				  AS "stdcOrgCode"				
+                    ,t3.org_description				  AS "stdcOrgDescription"				
+                    ,t1.stdc_bu_code				  AS "stdcBuCode"				
+                    ,t2.bu_name						  AS "stdcBuName"						
+                    ,t1.stdc_std_version			  AS "stdcStdVersion"			
+                    ,t1.stdc_cours_code				  AS "stdcCoursCode"				
+                    ,t4.cours_description			  AS "stdcCoursDescription"			
+                    ,t1.stdc_rlay_code				  AS "stdcRlayCode"				
+                    ,t6.rlay_description			  AS "stdcRlayDescription"			
+                    ,t1.stdc_purc_code				  AS "stdcPurcCode"				
+                    ,t7.purc_name					  AS "stdcPurcName"					
+                    ,t1.stdc_item_code				  AS "stdcItemCode"				
+                    ,t8.item_description			  AS "stdcItemDescription"			
+                    ,t9.itmc_name					  AS "stdcItmcName"					
+                    ,t10.itmc_name              	  AS "stdcItmcParent"	
+                    ,t1.stdc_scho_code				  AS "stdcSchoCode"				
+                    ,t5.scho_description			  AS "stdcSchoDescription"			
+                    ,t1.stdc_performance			  AS "stdcPerformance"			
+                    ,t1.stdc_renewal_cicle			  AS "stdcRenewalCicle"			
+                    ,t1.stdc_maintenance_cicle		  AS "stdcMaintenanceCicle"		
+                    ,t1.stdc_detail					  AS "stdcDetail"					
+                    ,t1.stdc_status					  AS "stdcStatus"	
                 FROM
-                        dbo.tbl_standards_courses t1
-                        JOIN dbo.tbl_business_units t2 ON
+                        tbl_standards_courses t1
+                        JOIN tbl_business_units t2 ON
                                 t2.bu_code     = t1.stdc_bu_code
                             AND t2.bu_status = 'S'
-                        LEFT JOIN dbo.tbl_organizations t3 ON
+                        LEFT JOIN tbl_organizations t3 ON
                                 t3.org_code = t1.stdc_org_code
-                        LEFT JOIN dbo.tbl_courses t4 ON
+                        LEFT JOIN tbl_courses t4 ON
                                 t4.cours_code = t1.stdc_cours_code
                             AND t4.cours_org_code = t1.stdc_org_code
-                        LEFT JOIN dbo.tbl_schools t5 ON
+                        LEFT JOIN tbl_schools t5 ON
                                 t5.scho_org_code = t1.stdc_org_code
                             AND t5.scho_code = t1.stdc_scho_code
-                        LEFT JOIN dbo.tbl_rooms_layout t6 ON
+                        LEFT JOIN tbl_rooms_layout t6 ON
                                 t6.rlay_code = t1.stdc_rlay_code
-                        LEFT JOIN dbo.tbl_purchase_areas t7 ON
+                        LEFT JOIN tbl_purchase_areas t7 ON
                                 t7.purc_code = t1.stdc_purc_code
-                        LEFT JOIN dbo.tbl_items t8 ON
+                        LEFT JOIN tbl_items t8 ON
                                 t8.item_code = t1.stdc_item_code
                             AND t8.item_purc_code = t1.stdc_purc_code
-                        LEFT JOIN dbo.tbl_item_categories t9 ON
+                        LEFT JOIN tbl_item_categories t9 ON
                                 t9.itmc_code = t8.item_itmc_code 
-                        LEFT JOIN dbo.tbl_item_categories t10 ON
+                        LEFT JOIN tbl_item_categories t10 ON
                                 t10.itmc_code = t9.itmc_parent_code
                 ORDER BY  t1.stdc_std_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllStandardCourses);
+        const result = await pool.query(sqlGetAllStandardCourses);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
-            standardCourses: result?.recordset
+            message: result?.rows.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
+            standardCourses: result?.rows
         };
 
     } catch (error) {
@@ -146,81 +131,74 @@ const getAllStandardCoursesByUserId = async( stdcUserId, stdcStdCode, stdcPurcCo
         const sqlGetAllStandardCourses = `
                 SELECT        
                     ROW_NUMBER() OVER(ORDER BY  t1.stdc_std_code ASC) AS id
-                    ,t1.stdc_std_code                 AS    stdcStdCode               
-                    ,t1.stdc_org_code				  AS 	stdcOrgCode				
-                    ,t3.org_description				  AS 	stdcOrgDescription				
-                    ,t1.stdc_bu_code				  AS 	stdcBuCode				
-                    ,t2.bu_name						  AS 	stdcBuName						
-                    ,t1.stdc_std_version			  AS 	stdcStdVersion			
-                    ,t1.stdc_cours_code				  AS 	stdcCoursCode				
-                    ,t4.cours_description			  AS 	stdcCoursDescription			
-                    ,t1.stdc_rlay_code				  AS 	stdcRlayCode				
-                    ,t6.rlay_description			  AS 	stdcRlayDescription			
-                    ,t1.stdc_purc_code				  AS 	stdcPurcCode				
-                    ,t7.purc_name					  AS 	stdcPurcName					
-                    ,t1.stdc_item_code				  AS 	stdcItemCode				
-                    ,t8.item_description			  AS 	stdcItemDescription			
-                    ,t9.itmc_name					  AS 	stdcItmcName					
-                    ,t10.itmc_name              	  AS 	stdcItmcParent	
-                    ,t1.stdc_scho_code				  AS 	stdcSchoCode				
-                    ,t5.scho_description			  AS 	stdcSchoDescription			
-                    ,t1.stdc_performance			  AS 	stdcPerformance			
-                    ,t1.stdc_renewal_cicle			  AS 	stdcRenewalCicle			
-                    ,t1.stdc_maintenance_cicle		  AS 	stdcMaintenanceCicle		
-                    ,t1.stdc_detail					  AS 	stdcDetail					
-                    ,t1.stdc_status					  AS 	stdcStatus	
+                    ,t1.stdc_std_code                 AS "stdcStdCode"               
+                    ,t1.stdc_org_code				  AS "stdcOrgCode"				
+                    ,t3.org_description				  AS "stdcOrgDescription"				
+                    ,t1.stdc_bu_code				  AS "stdcBuCode"				
+                    ,t2.bu_name						  AS "stdcBuName"						
+                    ,t1.stdc_std_version			  AS "stdcStdVersion"			
+                    ,t1.stdc_cours_code				  AS "stdcCoursCode"				
+                    ,t4.cours_description			  AS "stdcCoursDescription"			
+                    ,t1.stdc_rlay_code				  AS "stdcRlayCode"				
+                    ,t6.rlay_description			  AS "stdcRlayDescription"			
+                    ,t1.stdc_purc_code				  AS "stdcPurcCode"				
+                    ,t7.purc_name					  AS "stdcPurcName"					
+                    ,t1.stdc_item_code				  AS "stdcItemCode"				
+                    ,t8.item_description			  AS "stdcItemDescription"			
+                    ,t9.itmc_name					  AS "stdcItmcName"					
+                    ,t10.itmc_name              	  AS "stdcItmcParent"	
+                    ,t1.stdc_scho_code				  AS "stdcSchoCode"				
+                    ,t5.scho_description			  AS "stdcSchoDescription"			
+                    ,t1.stdc_performance			  AS "stdcPerformance"			
+                    ,t1.stdc_renewal_cicle			  AS "stdcRenewalCicle"			
+                    ,t1.stdc_maintenance_cicle		  AS "stdcMaintenanceCicle"		
+                    ,t1.stdc_detail					  AS "stdcDetail"					
+                    ,t1.stdc_status					  AS "stdcStatus"	
                 FROM
-                        dbo.tbl_standards_courses t1
-                        JOIN dbo.tbl_business_units t2 ON
+                        tbl_standards_courses t1
+                        JOIN tbl_business_units t2 ON
                                 t2.bu_code     = t1.stdc_bu_code
                             AND t2.bu_status = 'S'
-                        LEFT JOIN dbo.tbl_organizations t3 ON
+                        LEFT JOIN tbl_organizations t3 ON
                                 t3.org_code = t1.stdc_org_code
-                        LEFT JOIN dbo.tbl_courses t4 ON
+                        LEFT JOIN tbl_courses t4 ON
                                 t4.cours_code = t1.stdc_cours_code
                             AND t4.cours_org_code = t1.stdc_org_code
-                        LEFT JOIN dbo.tbl_schools t5 ON
+                        LEFT JOIN tbl_schools t5 ON
                                 t5.scho_org_code = t1.stdc_org_code
                             AND t5.scho_code = t1.stdc_scho_code
-                        LEFT JOIN dbo.tbl_rooms_layout t6 ON
+                        LEFT JOIN tbl_rooms_layout t6 ON
                                 t6.rlay_code = t1.stdc_rlay_code
-                        LEFT JOIN dbo.tbl_purchase_areas t7 ON
+                        LEFT JOIN tbl_purchase_areas t7 ON
                                 t7.purc_code = t1.stdc_purc_code
-                        LEFT JOIN dbo.tbl_items t8 ON
+                        LEFT JOIN tbl_items t8 ON
                                 t8.item_code = t1.stdc_item_code
                             AND t8.item_purc_code = t1.stdc_purc_code
-                        LEFT JOIN dbo.tbl_item_categories t9 ON
+                        LEFT JOIN tbl_item_categories t9 ON
                                 t9.itmc_code = t8.item_itmc_code 
-                        LEFT JOIN dbo.tbl_item_categories t10 ON
+                        LEFT JOIN tbl_item_categories t10 ON
                                 t10.itmc_code = t9.itmc_parent_code
                     WHERE
-                            t1.stdc_std_code    = @stdcStdCode
-                        and t1.stdc_std_version = @stdcVersion
-                        and t1.stdc_purc_code   = COALESCE(@stdcPurcCode, t1.stdc_purc_code)
+                            t1.stdc_std_code    = $2
+                        and t1.stdc_std_version = $3
+                        and t1.stdc_purc_code   = COALESCE($4, t1.stdc_purc_code)
                         and t1.stdc_purc_code in 
                         (
                             SELECT uspa_purc_code FROM tbl_users_purchase_areas t01
                             JOIN tbl_purchase_areas t02 ON t02.purc_code = t01.uspa_purc_code
-                            AND t01.uspa_user_id = @stdcUserId
+                            AND t01.uspa_user_id = $1
                     
                         )
                     ORDER BY  t1.stdc_std_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcUserId',   sql.Int,     stdcUserId   )
-                            .input('stdcStdCode',  sql.VarChar, stdcStdCode  )
-                            .input('stdcVersion',  sql.Int,     stdcVersion  )
-                            .input('stdcPurcCode', sql.VarChar, stdcPurcCode )
-                            .query(sqlGetAllStandardCourses);
+        const result = await pool.query(sqlGetAllStandardCourses, [stdcUserId, stdcStdCode, stdcVersion, stdcPurcCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
-            standardCourses: result?.recordset
+            message: result?.rows.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
+            standardCourses: result?.rows
         };
 
     } catch (error) {
@@ -252,81 +230,69 @@ const getStandardCourseById = async(
         const sqlGetAllStandardCoursesByUserId = `
             SELECT
                  ROW_NUMBER() OVER(ORDER BY  t1.stdc_std_code ASC) AS id
-                 ,t1.stdc_std_code                 AS    stdcStdCode               
-                 ,t1.stdc_org_code				  AS 	stdcOrgCode				
-                 ,t3.org_description				  AS 	stdcOrgDescription				
-                 ,t1.stdc_bu_code				  AS 	stdcBuCode				
-                 ,t2.bu_name						  AS 	stdcBuName						
-                 ,t1.stdc_std_version			  AS 	stdcStdVersion			
-                 ,t1.stdc_cours_code				  AS 	stdcCoursCode				
-                 ,t4.cours_description			  AS 	stdcCoursDescription			
-                 ,t1.stdc_rlay_code				  AS 	stdcRlayCode				
-                 ,t6.rlay_description			  AS 	stdcRlayDescription			
-                 ,t1.stdc_purc_code				  AS 	stdcPurcCode				
-                 ,t7.purc_name					  AS 	stdcPurcName					
-                 ,t1.stdc_item_code				  AS 	stdcItemCode				
-                 ,t8.item_description			  AS 	stdcItemDescription			
-                 ,t9.itmc_name					  AS 	stdcItmcName					
-                 ,t10.itmc_name              	  AS 	stdcItmcParent	
-                 ,t1.stdc_scho_code				  AS 	stdcSchoCode				
-                 ,t5.scho_description			  AS 	stdcSchoDescription			
-                 ,t1.stdc_performance			  AS 	stdcPerformance			
-                 ,t1.stdc_renewal_cicle			  AS 	stdcRenewalCicle			
-                 ,t1.stdc_maintenance_cicle		  AS 	stdcMaintenanceCicle		
-                 ,t1.stdc_detail					  AS 	stdcDetail					
-                 ,t1.stdc_status					  AS 	stdcStatus	
+                 ,t1.stdc_std_code                 AS "stdcStdCode"               
+                 ,t1.stdc_org_code				  AS "stdcOrgCode"				
+                 ,t3.org_description				  AS "stdcOrgDescription"				
+                 ,t1.stdc_bu_code				  AS "stdcBuCode"				
+                 ,t2.bu_name						  AS "stdcBuName"						
+                 ,t1.stdc_std_version			  AS "stdcStdVersion"			
+                 ,t1.stdc_cours_code				  AS "stdcCoursCode"				
+                 ,t4.cours_description			  AS "stdcCoursDescription"			
+                 ,t1.stdc_rlay_code				  AS "stdcRlayCode"				
+                 ,t6.rlay_description			  AS "stdcRlayDescription"			
+                 ,t1.stdc_purc_code				  AS "stdcPurcCode"				
+                 ,t7.purc_name					  AS "stdcPurcName"					
+                 ,t1.stdc_item_code				  AS "stdcItemCode"				
+                 ,t8.item_description			  AS "stdcItemDescription"			
+                 ,t9.itmc_name					  AS "stdcItmcName"					
+                 ,t10.itmc_name              	  AS "stdcItmcParent"	
+                 ,t1.stdc_scho_code				  AS "stdcSchoCode"				
+                 ,t5.scho_description			  AS "stdcSchoDescription"			
+                 ,t1.stdc_performance			  AS "stdcPerformance"			
+                 ,t1.stdc_renewal_cicle			  AS "stdcRenewalCicle"			
+                 ,t1.stdc_maintenance_cicle		  AS "stdcMaintenanceCicle"		
+                 ,t1.stdc_detail					  AS "stdcDetail"					
+                 ,t1.stdc_status					  AS "stdcStatus"	
             FROM
-                    dbo.tbl_standards_courses t1
-                    JOIN dbo.tbl_business_units t2 ON
+                    tbl_standards_courses t1
+                    JOIN tbl_business_units t2 ON
                             t2.bu_code     = t1.stdc_bu_code
                         AND t2.bu_status = 'S'
-                    LEFT JOIN dbo.tbl_organizations t3 ON
+                    LEFT JOIN tbl_organizations t3 ON
                             t3.org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_courses t4 ON
+                    LEFT JOIN tbl_courses t4 ON
                             t4.cours_code = t1.stdc_cours_code
                         AND t4.cours_org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_schools t5 ON
+                    LEFT JOIN tbl_schools t5 ON
                             t5.scho_org_code = t1.stdc_org_code
                         AND t5.scho_code = t1.stdc_scho_code
-                    LEFT JOIN dbo.tbl_rooms_layout t6 ON
+                    LEFT JOIN tbl_rooms_layout t6 ON
                             t6.rlay_code = t1.stdc_rlay_code
-                    LEFT JOIN dbo.tbl_purchase_areas t7 ON
+                    LEFT JOIN tbl_purchase_areas t7 ON
                             t7.purc_code = t1.stdc_purc_code
-                    LEFT JOIN dbo.tbl_items t8 ON
+                    LEFT JOIN tbl_items t8 ON
                             t8.item_code = t1.stdc_item_code
                         AND t8.item_purc_code = t1.stdc_purc_code
-                    LEFT JOIN dbo.tbl_item_categories t9 ON
+                    LEFT JOIN tbl_item_categories t9 ON
                             t9.itmc_code = t8.item_itmc_code 
-                    LEFT JOIN dbo.tbl_item_categories t10 ON
+                    LEFT JOIN tbl_item_categories t10 ON
                             t10.itmc_code = t9.itmc_parent_code
             WHERE
-                        t1.stdc_std_code    = @stdcStdCode
-                    and t1.stdc_org_code    = @stdcOrgCode
-                    and t1.stdc_bu_code     = @stdcBuCode
-                    and t1.stdc_std_version = @stdcVersion
-                    and t1.stdc_cours_code  = @stdcCoursCode
-                    and t1.stdc_rlay_code   = @stdcRlayCode
-                    and t1.stdc_purc_code   = @stdcPurcCode
-                    and t1.stdc_item_code   = @stdcItemCode
-                    and t1.stdc_scho_code   = @stdcSchoCode
+                        t1.stdc_std_code    = $1
+                    and t1.stdc_org_code    = $2
+                    and t1.stdc_bu_code     = $3
+                    and t1.stdc_std_version = $8
+                    and t1.stdc_cours_code  = $5
+                    and t1.stdc_rlay_code   = $6
+                    and t1.stdc_purc_code   = $4
+                    and t1.stdc_item_code   = $7
+                    and t1.stdc_scho_code   = $9
             ORDER BY  t1.stdc_std_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',    sql.VarChar, stdcStdCode   )
-                            .input('stdcOrgCode',    sql.VarChar, stdcOrgCode   )
-                            .input('stdcBuCode',     sql.VarChar, stdcBuCode   )
-                            .input('stdcPurcCode',   sql.VarChar, stdcPurcCode  )
-                            .input('stdcCoursCode',  sql.VarChar, stdcCoursCode )
-                            .input('stdcRlayCode',   sql.VarChar, stdcRlayCode  )
-                            .input('stdcItemCode',   sql.Int,     stdcItemCode  )
-                            .input('stdcVersion',    sql.Int,     stdcVersion   )
-                            .input('stdcSchoCode',   sql.VarChar, stdcSchoCode  )
-                            .query(sqlGetAllStandardCoursesByUserId);
+        const result = await pool.query(sqlGetAllStandardCoursesByUserId, [stdcStdCode, stdcOrgCode, stdcBuCode, stdcPurcCode, stdcCoursCode, stdcRlayCode, stdcItemCode, stdcVersion, stdcSchoCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -351,142 +317,143 @@ const getStandardCourseByStandardUserId = async(
         WITH tbl_rlay_courses as (
             SELECT DISTINCT
                     --ROW_NUMBER() OVER(ORDER BY  t1.stdc_std_code ASC) AS id
-                     t1.stdc_std_code                 AS    stdcStdCode               
-                    ,t1.stdc_org_code				  AS 	stdcOrgCode				
-                    ,t1.stdc_bu_code				  AS 	stdcBuCode				
-                    --,t2.bu_name					  AS 	stdcBuName						
-                    ,t1.stdc_std_version			  AS 	stdcStdVersion			
-                    ,t1.stdc_cours_code				  AS 	stdcCoursCode				
-                    ,t4.cours_description			  AS 	stdcCoursDescription			
-                    ,t1.stdc_rlay_code				  AS 	stdcRlayCode				
-                    ,t6.rlay_description			  AS 	stdcRlayDescription			
-                    ,t1.stdc_purc_code				  AS 	stdcPurcCode				
-                    --,t7.purc_name					  AS 	stdcPurcName					
-                    ,t1.stdc_item_code				  AS 	stdcItemCode				
-                    --,t8.item_description			  AS 	stdcItemDescription			
-                    --,t9.itmc_name					  AS 	stdcItmcName					
-                    --,t10.itmc_name              	  AS 	stdcItmcParent	
-                    ,t1.stdc_scho_code				  AS 	stdcSchoCode				
-                    ,t5.scho_description			  AS 	stdcSchoDescription			
-                    --,t1.stdc_performance			  AS 	stdcPerformance			
-                    --,t1.stdc_renewal_cicle			  AS 	stdcRenewalCicle			
-                    --,t1.stdc_maintenance_cicle		  AS 	stdcMaintenanceCicle		
-                    --,t1.stdc_detail					  AS 	stdcDetail					
-                    ,t1.stdc_status					  AS 	stdcStatus	
+                     t1.stdc_std_code                 AS "stdcStdCode"               
+                    ,t1.stdc_org_code				  AS "stdcOrgCode"				
+                    ,t1.stdc_bu_code				  AS "stdcBuCode"				
+                    --,t2.bu_name					  AS "stdcBuName"						
+                    ,t1.stdc_std_version			  AS "stdcStdVersion"			
+                    ,t1.stdc_cours_code				  AS "stdcCoursCode"				
+                    ,t4.cours_description			  AS "stdcCoursDescription"			
+                    ,t1.stdc_rlay_code				  AS "stdcRlayCode"				
+                    ,t6.rlay_description			  AS "stdcRlayDescription"			
+                    ,t1.stdc_purc_code				  AS "stdcPurcCode"				
+                    --,t7.purc_name					  AS "stdcPurcName"					
+                    ,t1.stdc_item_code				  AS "stdcItemCode"				
+                    --,t8.item_description			  AS "stdcItemDescription"			
+                    --,t9.itmc_name					  AS "stdcItmcName"					
+                    --,t10.itmc_name              	  AS "stdcItmcParent"	
+                    ,t1.stdc_scho_code				  AS "stdcSchoCode"				
+                    ,t5.scho_description			  AS "stdcSchoDescription"			
+                    --,t1.stdc_performance			  AS "stdcPerformance"			
+                    --,t1.stdc_renewal_cicle			  AS "stdcRenewalCicle"			
+                    --,t1.stdc_maintenance_cicle		  AS "stdcMaintenanceCicle"		
+                    --,t1.stdc_detail					  AS "stdcDetail"					
+                    ,t1.stdc_status					  AS "stdcStatus"	
             FROM
-                    dbo.tbl_standards_courses t1
-                    JOIN dbo.tbl_business_units t2 ON
+                    tbl_standards_courses t1
+                    JOIN tbl_business_units t2 ON
                             t2.bu_code     = t1.stdc_bu_code
                         AND t2.bu_status = 'S'
-                    LEFT JOIN dbo.tbl_organizations t3 ON
+                    LEFT JOIN tbl_organizations t3 ON
                             t3.org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_courses t4 ON
+                    LEFT JOIN tbl_courses t4 ON
                             t4.cours_code = t1.stdc_cours_code
                         AND t4.cours_org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_schools t5 ON
+                    LEFT JOIN tbl_schools t5 ON
                             t5.scho_org_code = t1.stdc_org_code
                         AND t5.scho_code = t1.stdc_scho_code
-                    LEFT JOIN dbo.tbl_rooms_layout t6 ON
+                    LEFT JOIN tbl_rooms_layout t6 ON
                             t6.rlay_code = t1.stdc_rlay_code
-                    LEFT JOIN dbo.tbl_purchase_areas t7 ON
+                    LEFT JOIN tbl_purchase_areas t7 ON
                             t7.purc_code = t1.stdc_purc_code
-                    LEFT JOIN dbo.tbl_items t8 ON
+                    LEFT JOIN tbl_items t8 ON
                             t8.item_code = t1.stdc_item_code
                         AND t8.item_purc_code = t1.stdc_purc_code
-                    --LEFT JOIN dbo.tbl_item_categories t9 ON
+                    --LEFT JOIN tbl_item_categories t9 ON
                     --		t9.itmc_code = t8.item_itmc_code 
-                    --LEFT JOIN dbo.tbl_item_categories t10 ON
+                    --LEFT JOIN tbl_item_categories t10 ON
                     --		t10.itmc_code = t9.itmc_parent_code
             ), tbl_items as (
             SELECT DISTINCT
                     --ROW_NUMBER() OVER(ORDER BY  t1.stdc_std_code ASC) AS id
-                     t1.stdc_std_code                 AS    itmStdCode               
-                    ,t1.stdc_org_code				  AS 	itmOrgCode				
-                    ,t1.stdc_bu_code				  AS 	itmBuCode				
-                    --,t2.bu_name					  AS 	itmBuName						
-                    ,t1.stdc_std_version			  AS 	itmStdVersion			
-                    ,t1.stdc_cours_code				  AS 	itmCoursCode				
-                    --,t4.cours_description			  AS 	itmCoursDescription			
-                    ,t1.stdc_rlay_code				  AS 	itmRlayCode				
-                    --,t6.rlay_description			  AS 	itmRlayDescription			
-                    ,t1.stdc_purc_code				  AS 	itmPurcCode				
-                    --,t7.purc_name					  AS 	itmPurcName					
-                    ,t1.stdc_item_code				  AS 	itmItemCode				
-                    ,t8.item_description			  AS 	itmItemDescription			
-                    ,t9.itmc_name					  AS 	itmItmcName					
-                    ,t10.itmc_name              	  AS 	itmItmcParent	
-                    ,t1.stdc_scho_code				  AS 	itmSchoCode				
-                    --,t5.scho_description			  AS 	itmSchoDescription			
-                    ,t1.stdc_performance			  AS 	itmPerformance			
-                    ,t1.stdc_renewal_cicle			  AS 	itmRenewalCicle			
-                    ,t1.stdc_maintenance_cicle		  AS 	itmMaintenanceCicle		
-                    ,t1.stdc_detail					  AS 	itmDetail					
-                    ,t1.stdc_status					  AS 	itmStatus	
-                    ,t8.item_isbn                     AS    itmIsbn 
-                    ,t8.item_attribute_01             AS    itmAttribute01 
-                    ,t8.item_value_01                 AS    itmValue01     
-                    ,t8.item_attribute_02             AS    itmAttribute02 
-                    ,t8.item_value_02                 AS    itmValue02     
-                    ,t8.item_attribute_03             AS    itmAttribute03 
-                    ,t8.item_value_03                 AS    itmValue03     
-                    ,t8.item_attribute_04             AS    itmAttribute04 
-                    ,t8.item_value_04                 AS    itmValue04     
-                    ,t8.item_attribute_05             AS    itmAttribute05 
-                    ,t8.item_value_05                 AS    itmValue05     
-                    ,t8.item_attribute_06             AS    itmAttribute06 
-                    ,t8.item_value_06                 AS    itmValue06     
-                    ,t8.item_attribute_07             AS    itmAttribute07 
-                    ,t8.item_value_07                 AS    itmValue07             
+                     t1.stdc_std_code                 AS "itmStdCode"               
+                    ,t1.stdc_org_code				  AS "itmOrgCode"				
+                    ,t1.stdc_bu_code				  AS "itmBuCode"				
+                    --,t2.bu_name					  AS "itmBuName"						
+                    ,t1.stdc_std_version			  AS "itmStdVersion"			
+                    ,t1.stdc_cours_code				  AS "itmCoursCode"				
+                    --,t4.cours_description			  AS "itmCoursDescription"			
+                    ,t1.stdc_rlay_code				  AS "itmRlayCode"				
+                    --,t6.rlay_description			  AS "itmRlayDescription"			
+                    ,t1.stdc_purc_code				  AS "itmPurcCode"				
+                    --,t7.purc_name					  AS "itmPurcName"					
+                    ,t1.stdc_item_code				  AS "itmItemCode"				
+                    ,t8.item_description			  AS "itmItemDescription"			
+                    ,t9.itmc_name					  AS "itmItmcName"					
+                    ,t10.itmc_name              	  AS "itmItmcParent"	
+                    ,t1.stdc_scho_code				  AS "itmSchoCode"				
+                    --,t5.scho_description			  AS "itmSchoDescription"			
+                    ,t1.stdc_performance			  AS "itmPerformance"			
+                    ,t1.stdc_renewal_cicle			  AS "itmRenewalCicle"			
+                    ,t1.stdc_maintenance_cicle		  AS "itmMaintenanceCicle"		
+                    ,t1.stdc_detail					  AS "itmDetail"					
+                    ,t1.stdc_status					  AS "itmStatus"	
+                    ,t8.item_isbn                     AS "itmIsbn" 
+                    ,t8.item_attribute_01             AS "itmAttribute01" 
+                    ,t8.item_value_01                 AS "itmValue01"     
+                    ,t8.item_attribute_02             AS "itmAttribute02" 
+                    ,t8.item_value_02                 AS "itmValue02"     
+                    ,t8.item_attribute_03             AS "itmAttribute03" 
+                    ,t8.item_value_03                 AS "itmValue03"     
+                    ,t8.item_attribute_04             AS "itmAttribute04" 
+                    ,t8.item_value_04                 AS "itmValue04"     
+                    ,t8.item_attribute_05             AS "itmAttribute05" 
+                    ,t8.item_value_05                 AS "itmValue05"     
+                    ,t8.item_attribute_06             AS "itmAttribute06" 
+                    ,t8.item_value_06                 AS "itmValue06"     
+                    ,t8.item_attribute_07             AS "itmAttribute07" 
+                    ,t8.item_value_07                 AS "itmValue07"             
             FROM
-                    dbo.tbl_standards_courses t1
-                    JOIN dbo.tbl_business_units t2 ON
+                    tbl_standards_courses t1
+                    JOIN tbl_business_units t2 ON
                             t2.bu_code     = t1.stdc_bu_code
                         AND t2.bu_status = 'S'
-                    LEFT JOIN dbo.tbl_organizations t3 ON
+                    LEFT JOIN tbl_organizations t3 ON
                             t3.org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_courses t4 ON
+                    LEFT JOIN tbl_courses t4 ON
                             t4.cours_code = t1.stdc_cours_code
                         AND t4.cours_org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_schools t5 ON
+                    LEFT JOIN tbl_schools t5 ON
                             t5.scho_org_code = t1.stdc_org_code
                         AND t5.scho_code = t1.stdc_scho_code
-                    LEFT JOIN dbo.tbl_rooms_layout t6 ON
+                    LEFT JOIN tbl_rooms_layout t6 ON
                             t6.rlay_code = t1.stdc_rlay_code
-                    LEFT JOIN dbo.tbl_purchase_areas t7 ON
+                    LEFT JOIN tbl_purchase_areas t7 ON
                             t7.purc_code = t1.stdc_purc_code
-                    LEFT JOIN dbo.tbl_items t8 ON
+                    LEFT JOIN tbl_items t8 ON
                             t8.item_code = t1.stdc_item_code
                         AND t8.item_purc_code = t1.stdc_purc_code
-                    LEFT JOIN dbo.tbl_item_categories t9 ON
+                    LEFT JOIN tbl_item_categories t9 ON
                             t9.itmc_code = t8.item_itmc_code 
-                    LEFT JOIN dbo.tbl_item_categories t10 ON
+                    LEFT JOIN tbl_item_categories t10 ON
                             t10.itmc_code = t9.itmc_parent_code
             
             )            
                         
                         SELECT DISTINCT 
-                                ROW_NUMBER() OVER(ORDER BY  t1.std_code ASC) AS standardId
-                                ,t1.std_code                  AS  stdCode                
-                                ,t1.std_org_code              AS  stdOrgCode            
-                                ,t2.org_description			  AS  stdOrgDescription			
-                                ,t1.std_bu_code				  AS  stdBuCode				
-                                ,t1.std_purc_code			  AS  stdPurcCode
-                                ,t7.purc_name                 AS  stdPurcDescription			
-                                ,t1.std_version				  AS  stdVersion				
-                                ,t1.std_name				  AS  stdName				
-                                ,t1.std_registration_date	  AS  stdRegistrationDate	
-                                ,t1.std_cacc_code			  AS  stdCaccCode			
-                                ,t3.cacc_description		  AS  stdCaccDescription		
-                                ,t1.std_scho_code			  AS  stdSchoCode			
-                                ,t4.scho_description		  AS  stdSchoDescription		
-                                ,t1.std_year                  AS  stdYear
-                                ,COALESCE(t1.std_available_for_purchase, 'N') AS stdAvailableForPurchase
-                                ,t1.std_status AS stdStatus
-                                , relay = (SELECT  ROW_NUMBER() OVER(ORDER BY stdcCoursCode, stdcRlayCode ASC) AS courseId
-                                                  ,*
+                                ROW_NUMBER() OVER(ORDER BY  t1.std_code ASC) AS "standardId"
+                                ,t1.std_code                  AS "stdCode"                
+                                ,t1.std_org_code              AS "stdOrgCode"            
+                                ,t2.org_description			  AS "stdOrgDescription"			
+                                ,t1.std_bu_code				  AS "stdBuCode"				
+                                ,t1.std_purc_code			  AS "stdPurcCode"
+                                ,t7.purc_name                 AS "stdPurcDescription"			
+                                ,t1.std_version				  AS "stdVersion"				
+                                ,t1.std_name				  AS "stdName"				
+                                ,t1.std_registration_date	  AS "stdRegistrationDate"	
+                                ,t1.std_cacc_code			  AS "stdCaccCode"			
+                                ,t3.cacc_description		  AS "stdCaccDescription"		
+                                ,t1.std_scho_code			  AS "stdSchoCode"			
+                                ,t4.scho_description		  AS "stdSchoDescription"		
+                                ,t1.std_year                  AS "stdYear"
+                                ,COALESCE(t1.std_available_for_purchase, 'N') AS "stdAvailableForPurchase"
+                                ,t1.std_status AS "stdStatus"
+                                , (SELECT json_agg(row_to_json(relay_outer)) FROM (
+                                    SELECT ROW_NUMBER() OVER(ORDER BY stdcCoursCode, stdcRlayCode ASC) AS "courseId"
+                                                  ,relay_inner.*
                                     FROM (
                                             SELECT DISTINCT 
-                                                    --ROW_NUMBER() OVER(ORDER BY  t01.stdcCoursCode, t01.stdcRlayCode ASC) AS courseId
+                                                    --ROW_NUMBER() OVER(ORDER BY  t01.stdcCoursCode, t01.stdcRlayCode ASC) AS "courseId"
                                                     --t01.id
                                                     --,t01.stdcStdCode
                                                      t01.stdcCoursCode		    
@@ -501,12 +468,10 @@ const getStandardCourseByStandardUserId = async(
                                                     ,t01.stdcSchoDescription	
                                                     ,t1.std_year as stdcYear		
                                                     --,t01.stdcStatus
-                                                    ,items = (
-                                                        SELECT *
-                                                            FROM (
+                                                    ,(SELECT json_agg(row_to_json(items_row)) FROM (
                                                                 SELECT DISTINCT 
-                                                                   ROW_NUMBER() OVER(ORDER BY  t001.itmItemCode ASC) AS itemId,
-                                                                   (
+                                                                   ROW_NUMBER() OVER(ORDER BY  t001.itmItemCode ASC) AS "itemId",
+                                                                   (SELECT row_to_json(k) FROM (
                                                                     SELECT DISTINCT
                                                                            stdcStdCode,
                                                                            stdcOrgCode,
@@ -514,11 +479,10 @@ const getStandardCourseByStandardUserId = async(
                                                                            stdcPurcCode,
                                                                            stdcCoursCode,
                                                                            stdcRlayCode,
-                                                                           itmItemCode  AS  stdcItemCode,
+                                                                           itmItemCode  AS "stdcItemCode",
                                                                            stdcStdVersion,
                                                                            stdcSchoCode
-                                                                       FOR JSON path , INCLUDE_NULL_VALUES
-                                                                   )   AS  keyToDelete
+                                                                   ) k)   AS "keyToDelete"
                                                                    ,itmItemCode
                                                                    ,itmItemDescription
                                                                    ,itmItmcName
@@ -554,9 +518,8 @@ const getStandardCourseByStandardUserId = async(
                                                                 AND t01.stdcRlayCode   = t001.itmRlayCode
                                                                 --AND t01.stdcItemCode   = t001.itmItemCode
                
-                                                           ) t001 
-                                                                 FOR JSON path , INCLUDE_NULL_VALUES
-                                                       ) --AS  items
+                                                        ) items_row
+                                                       ) AS items
                                                 FROM	tbl_rlay_courses t01
                                                 WHERE 
                                                         t1.std_code      = t01.stdcStdCode
@@ -569,8 +532,9 @@ const getStandardCourseByStandardUserId = async(
                                                -- ORDER BY ArtistName
                                                 --FOR JSON PATH 
                                             --ORDER BY  t1.stdc_std_code		
-                            ) t01 FOR JSON PATH , INCLUDE_NULL_VALUES
-                            ) --AS  rlay_courses
+                            ) relay_inner
+                            ) relay_outer
+                            ) AS relay
                         FROM tbl_standards t1
                             LEFT JOIN tbl_organizations t2 ON t2.org_code = t1.std_org_code
                             LEFT JOIN tbl_charge_account t3 ON t3.cacc_code = t1.std_cacc_code AND t3.cacc_org_code = t2.org_code
@@ -579,40 +543,26 @@ const getStandardCourseByStandardUserId = async(
                             LEFT JOIN tbl_users_charge_accounts t6 ON  t6.ucac_cacc_code = t1.std_cacc_code AND t6.ucac_purc_code = t1.std_purc_code
                             LEFT JOIN tbl_purchase_areas t7 ON t7.purc_code = t1.std_purc_code
                         WHERE
-                                    t1.std_code      = @stdcStdCode
-                                AND t1.std_org_code  = @stdcOrgCode
-                                AND t1.std_bu_code   = @stdcBuCode
-                                AND t1.std_purc_code = @stdcPurcCode
-                                AND t1.std_year      = @stdcYear 
-                                AND t1.std_version   = @stdcVersion
-                                AND t5.usbu_user_id  = @stdcUserId
-                                AND t6.ucac_user_id  = @stdcUserId 
-                                AND t5.usbu_bu_code  = @stdcBuCode
+                                    t1.std_code      = $1
+                                AND t1.std_org_code  = $2
+                                AND t1.std_bu_code   = $3
+                                AND t1.std_purc_code = $4
+                                AND t1.std_year      = $6
+                                AND t1.std_version   = $5
+                                AND t5.usbu_user_id  = $7
+                                AND t6.ucac_user_id  = $7 
+                                AND t5.usbu_bu_code  = $3
                                 AND t4.scho_description IS NOT NULL
                         ORDER BY  t1.std_code
-                        FOR JSON PATH , INCLUDE_NULL_VALUES,  ROOT('standard')
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',    sql.VarChar, stdcStdCode   )
-                            .input('stdcOrgCode',    sql.VarChar, stdcOrgCode   )
-                            .input('stdcBuCode',     sql.VarChar, stdcBuCode   )
-                            .input('stdcPurcCode',   sql.VarChar, stdcPurcCode  )
-                            //.input('stdcCoursCode',  sql.VarChar, stdcCoursCode )
-                            //.input('stdcRlayCode',   sql.VarChar, stdcRlayCode  )
-                            //.input('stdcItemCode',   sql.Int,     stdcItemCode  )
-                            .input('stdcVersion',    sql.Int,     stdcVersion   )
-                            .input('stdcYear',       sql.Int,     stdcYear  )
-                            .input('stdcUserId',     sql.VarChar, stdcUserId  )
-                            .query(sqlGetAllStandardCoursesByUserId);
+        const result = await pool.query(sqlGetAllStandardCoursesByUserId, [stdcStdCode, stdcOrgCode, stdcBuCode, stdcPurcCode, stdcVersion, stdcYear, stdcUserId]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Estandares Asignasturas encontrados' : 'No se encontraron Estandares Asignasturas',
-            standardCourses: result?.recordset
+            message: result?.rows.length > 0 ? 'Estandares Asignasturas encontrados' : 'No se encontraron Estandares Asignasturas',
+            standardCourses: result?.rows
         };
 
     } catch (error) {
@@ -646,85 +596,73 @@ const getStandardCourseBySearch = async(
         const sqlGetAllStandardCoursesByUserId = `
             SELECT
                  ROW_NUMBER() OVER(ORDER BY  t1.stdc_std_code ASC) AS id
-                 ,t1.stdc_std_code                 AS    stdcStdCode               
-                 ,t1.stdc_org_code				  AS 	stdcOrgCode				
-                 ,t3.org_description				  AS 	stdcOrgDescription				
-                 ,t1.stdc_bu_code				  AS 	stdcBuCode				
-                 ,t2.bu_name						  AS 	stdcBuName						
-                 ,t1.stdc_std_version			  AS 	stdcStdVersion			
-                 ,t1.stdc_cours_code				  AS 	stdcCoursCode				
-                 ,t4.cours_description			  AS 	stdcCoursDescription			
-                 ,t1.stdc_rlay_code				  AS 	stdcRlayCode				
-                 ,t6.rlay_description			  AS 	stdcRlayDescription			
-                 ,t1.stdc_purc_code				  AS 	stdcPurcCode				
-                 ,t7.purc_name					  AS 	stdcPurcName					
-                 ,t1.stdc_item_code				  AS 	stdcItemCode				
-                 ,t8.item_description			  AS 	stdcItemDescription			
-                 ,t9.itmc_name					  AS 	stdcItmcName					
-                 ,t10.itmc_name              	  AS 	stdcItmcParent	
-                 ,t1.stdc_scho_code				  AS 	stdcSchoCode				
-                 ,t5.scho_description			  AS 	stdcSchoDescription			
-                 ,t1.stdc_performance			  AS 	stdcPerformance			
-                 ,t1.stdc_renewal_cicle			  AS 	stdcRenewalCicle			
-                 ,t1.stdc_maintenance_cicle		  AS 	stdcMaintenanceCicle		
-                 ,t1.stdc_detail					  AS 	stdcDetail					
-                 ,t1.stdc_status					  AS 	stdcStatus	
+                 ,t1.stdc_std_code                 AS "stdcStdCode"               
+                 ,t1.stdc_org_code				  AS "stdcOrgCode"				
+                 ,t3.org_description				  AS "stdcOrgDescription"				
+                 ,t1.stdc_bu_code				  AS "stdcBuCode"				
+                 ,t2.bu_name						  AS "stdcBuName"						
+                 ,t1.stdc_std_version			  AS "stdcStdVersion"			
+                 ,t1.stdc_cours_code				  AS "stdcCoursCode"				
+                 ,t4.cours_description			  AS "stdcCoursDescription"			
+                 ,t1.stdc_rlay_code				  AS "stdcRlayCode"				
+                 ,t6.rlay_description			  AS "stdcRlayDescription"			
+                 ,t1.stdc_purc_code				  AS "stdcPurcCode"				
+                 ,t7.purc_name					  AS "stdcPurcName"					
+                 ,t1.stdc_item_code				  AS "stdcItemCode"				
+                 ,t8.item_description			  AS "stdcItemDescription"			
+                 ,t9.itmc_name					  AS "stdcItmcName"					
+                 ,t10.itmc_name              	  AS "stdcItmcParent"	
+                 ,t1.stdc_scho_code				  AS "stdcSchoCode"				
+                 ,t5.scho_description			  AS "stdcSchoDescription"			
+                 ,t1.stdc_performance			  AS "stdcPerformance"			
+                 ,t1.stdc_renewal_cicle			  AS "stdcRenewalCicle"			
+                 ,t1.stdc_maintenance_cicle		  AS "stdcMaintenanceCicle"		
+                 ,t1.stdc_detail					  AS "stdcDetail"					
+                 ,t1.stdc_status					  AS "stdcStatus"	
                 FROM
-                    dbo.tbl_standards_courses t1
-                    JOIN dbo.tbl_business_units t2 ON
+                    tbl_standards_courses t1
+                    JOIN tbl_business_units t2 ON
                             t2.bu_code     = t1.stdc_bu_code
                         AND t2.bu_status = 'S'
-                    LEFT JOIN dbo.tbl_organizations t3 ON
+                    LEFT JOIN tbl_organizations t3 ON
                             t3.org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_courses t4 ON
+                    LEFT JOIN tbl_courses t4 ON
                             t4.cours_code = t1.stdc_cours_code
                         AND t4.cours_org_code = t1.stdc_org_code
-                    LEFT JOIN dbo.tbl_schools t5 ON
+                    LEFT JOIN tbl_schools t5 ON
                             t5.scho_org_code = t1.stdc_org_code
                         AND t5.scho_code = t1.stdc_scho_code
-                    LEFT JOIN dbo.tbl_rooms_layout t6 ON
+                    LEFT JOIN tbl_rooms_layout t6 ON
                             t6.rlay_code = t1.stdc_rlay_code
-                    LEFT JOIN dbo.tbl_purchase_areas t7 ON
+                    LEFT JOIN tbl_purchase_areas t7 ON
                             t7.purc_code = t1.stdc_purc_code
-                    LEFT JOIN dbo.tbl_items t8 ON
+                    LEFT JOIN tbl_items t8 ON
                             t8.item_code = t1.stdc_item_code
                         AND t8.item_purc_code = t1.stdc_purc_code
-                    LEFT JOIN dbo.tbl_item_categories t9 ON
+                    LEFT JOIN tbl_item_categories t9 ON
                             t9.itmc_code = t8.item_itmc_code 
-                    LEFT JOIN dbo.tbl_item_categories t10 ON
+                    LEFT JOIN tbl_item_categories t10 ON
                             t10.itmc_code = t9.itmc_parent_code
                 WHERE
-                        t1.stdc_std_code    = COALESCE(@stdcStdCode,t1.stdc_std_code)
-                    and t1.stdc_org_code    = COALESCE(@stdcOrgCode,t1.stdc_org_code)
-                    and t1.stdc_bu_code     = COALESCE(@stdcBuCode,t1.stdc_bu_code)
-                    and t1.stdc_std_version = COALESCE(@stdcStdVersion,t1.stdc_std_version)
-                    and t1.stdc_cours_code  = COALESCE(@stdcCoursCode,t1.stdc_cours_code)
-                    and t1.stdc_rlay_code   = COALESCE(@stdcRlayCode,t1.stdc_rlay_code)
-                    and t1.stdc_purc_code   = COALESCE(@stdcPurcCode,t1.stdc_purc_code)
-                    and t1.stdc_item_code   = COALESCE(@stdcItemCode,t1.stdc_item_code)
-                    and t1.stdc_scho_code   = COALESCE(@stdcSchoCode,t1.stdc_scho_code)
+                        t1.stdc_std_code    = COALESCE($1,t1.stdc_std_code)
+                    and t1.stdc_org_code    = COALESCE($2,t1.stdc_org_code)
+                    and t1.stdc_bu_code     = COALESCE($3,t1.stdc_bu_code)
+                    and t1.stdc_std_version = COALESCE($8,t1.stdc_std_version)
+                    and t1.stdc_cours_code  = COALESCE($5,t1.stdc_cours_code)
+                    and t1.stdc_rlay_code   = COALESCE($6,t1.stdc_rlay_code)
+                    and t1.stdc_purc_code   = COALESCE($4,t1.stdc_purc_code)
+                    and t1.stdc_item_code   = COALESCE($7,t1.stdc_item_code)
+                    and t1.stdc_scho_code   = COALESCE($9,t1.stdc_scho_code)
                 ORDER BY  t1.stdc_std_code
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',    sql.VarChar, stdcStdCode    )
-                            .input('stdcOrgCode',    sql.VarChar, stdcOrgCode    )
-                            .input('stdcBuCode',     sql.VarChar, stdcBuCode     )
-                            .input('stdcPurcCode',   sql.VarChar, stdcPurcCode   )
-                            .input('stdcCoursCode',  sql.VarChar, stdcCoursCode  )
-                            .input('stdcRlayCode',   sql.VarChar, stdcRlayCode   )
-                            .input('stdcItemCode',   sql.Int,     stdcItemCode   )
-                            .input('stdcStdVersion', sql.Int,     stdcStdVersion )
-                            .input('stdcSchoCode',   sql.VarChar, stdcSchoCode   )
-                            .query(sqlGetAllStandardCoursesByUserId);
+        const result = await pool.query(sqlGetAllStandardCoursesByUserId, [stdcStdCode, stdcOrgCode, stdcBuCode, stdcPurcCode, stdcCoursCode, stdcRlayCode, stdcItemCode, stdcStdVersion, stdcSchoCode]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
-            standardCourses: result?.recordset
+            message: result?.rows.length > 0 ? 'Estandares encontrados' : 'No se encontraron Estandares',
+            standardCourses: result?.rows
         };
 
     } catch (error) {
@@ -777,42 +715,25 @@ const createStandardCourse = async ( {
                         ,stdc_detail
                         ,stdc_status)
                 VALUES
-                        (@stdcStdCode
-                        ,@stdcOrgCode
-                        ,@stdcBuCode
-                        ,@stdcStdVersion
-                        ,@stdcCoursCode
-                        ,@stdcRlayCode
-                        ,@stdcPurcCode
-                        ,@stdcItemCode
-                        ,@stdcSchoCode
-                        ,@stdcPerformance
-                        ,@stdcRenewalCicle
-                        ,@stdcMaintenanceCicle
-                        ,@stdcDetail
-                        ,@stdcStatus)     
+                        ($1
+                        ,$2
+                        ,$3
+                        ,$4
+                        ,$5
+                        ,$6
+                        ,$7
+                        ,$8
+                        ,$9
+                        ,$10
+                        ,$11
+                        ,$12
+                        ,$13
+                        ,$14)     
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',            sql.VarChar,stdcStdCode         )
-                            .input('stdcOrgCode',            sql.VarChar,stdcOrgCode         )
-                            .input('stdcBuCode',             sql.VarChar,stdcBuCode          )
-                            .input('stdcStdVersion',         sql.VarChar,stdcStdVersion      )
-                            .input('stdcCoursCode',          sql.VarChar,stdcCoursCode       )
-                            .input('stdcRlayCode',           sql.VarChar,stdcRlayCode        )
-                            .input('stdcPurcCode',           sql.VarChar,stdcPurcCode        )
-                            .input('stdcItemCode',           sql.VarChar,stdcItemCode        )
-                            .input('stdcSchoCode',           sql.VarChar,stdcSchoCode        )
-                            .input('stdcPerformance',        sql.VarChar,stdcPerformance     )
-                            .input('stdcRenewalCicle',       sql.VarChar,stdcRenewalCicle    )
-                            .input('stdcMaintenanceCicle',   sql.VarChar,stdcMaintenanceCicle)
-                            .input('stdcDetail',             sql.VarChar,stdcDetail          )
-                            .input('stdcStatus',             sql.VarChar,stdcStatus          )                               
-                            .query(sqlCreateStandardCourse);
+        const result = await pool.query(sqlCreateStandardCourse, [stdcStdCode, stdcOrgCode, stdcBuCode, stdcStdVersion, stdcCoursCode, stdcRlayCode, stdcPurcCode, stdcItemCode, stdcSchoCode, stdcPerformance, stdcRenewalCicle, stdcMaintenanceCicle, stdcDetail, stdcStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -850,35 +771,23 @@ const updateStandardCourse = async(
     try {
         
         const sqlUpdateStandardCourse = `
-        UPDATE dbo.tbl_standards_courses 
+        UPDATE tbl_standards_courses 
            SET ${columnSet}
         WHERE
-                stdc_std_code    = @stdcStdCode
-            and stdc_org_code    = @stdcOrgCode
-            and stdc_purc_code   = @stdcPurcCode
-            and stdc_bu_code     = @stdcBuCode
-            and stdc_cours_code  = @stdcCoursCode
-            and stdc_rlay_code   = @stdcRlayCode
-            and stdc_item_code   = @stdcItemCode
-            and stdc_std_version = @stdcStdVersion
-            and stdc_scho_code   = @stdcSchoCode
+                stdc_std_code    = $1
+            and stdc_org_code    = $2
+            and stdc_purc_code   = $7
+            and stdc_bu_code     = $3
+            and stdc_cours_code  = $5
+            and stdc_rlay_code   = $6
+            and stdc_item_code   = $8
+            and stdc_std_version = $4
+            and stdc_scho_code   = $9
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',     sql.VarChar, stdcStdCode     )
-                            .input('stdcOrgCode',     sql.VarChar, stdcOrgCode     )
-                            .input('stdcBuCode',      sql.VarChar, stdcBuCode      )
-                            .input('stdcStdVersion',  sql.Int,     stdcStdVersion  )
-                            .input('stdcCoursCode',   sql.VarChar, stdcCoursCode   )
-                            .input('stdcRlayCode',    sql.VarChar, stdcRlayCode    )
-                            .input('stdcPurcCode',    sql.VarChar, stdcPurcCode    )
-                            .input('stdcItemCode',    sql.Int,     stdcItemCode    )
-                            .input('stdcSchoCode',    sql.VarChar, stdcSchoCode    )
-                            .query(sqlUpdateStandardCourse);
+        const result = await pool.query(sqlUpdateStandardCourse, [stdcStdCode, stdcOrgCode, stdcBuCode, stdcStdVersion, stdcCoursCode, stdcRlayCode, stdcPurcCode, stdcItemCode, stdcSchoCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -901,34 +810,22 @@ const deleteStandardCourse = async (
     try {
         
         const sqlDeleteStandardCourse = `
-            DELETE FROM dbo.tbl_standards_courses
+            DELETE FROM tbl_standards_courses
             WHERE
-                    stdc_std_code    = @stdcStdCode
-                and stdc_org_code    = @stdcOrgCode
-                and stdc_purc_code   = @stdcPurcCode
-                and stdc_bu_code     = @stdcBuCode
-                and stdc_cours_code  = @stdcCoursCode
-                and stdc_rlay_code   = @stdcRlayCode
-                and stdc_item_code   = @stdcItemCode
-                and stdc_std_version = @stdcStdVersion
-                and stdc_scho_code   = @stdcSchoCode
+                    stdc_std_code    = $1
+                and stdc_org_code    = $2
+                and stdc_purc_code   = $3
+                and stdc_bu_code     = $4
+                and stdc_cours_code  = $5
+                and stdc_rlay_code   = $6
+                and stdc_item_code   = $7
+                and stdc_std_version = $8
+                and stdc_scho_code   = $9
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',    sql.VarChar, stdcStdCode   )
-                            .input('stdcOrgCode',    sql.VarChar, stdcOrgCode   )
-                            .input('stdcPurcCode',   sql.VarChar, stdcPurcCode  )
-                            .input('stdcBuCode',     sql.VarChar, stdcBuCode    )
-                            .input('stdcCoursCode',  sql.VarChar, stdcCoursCode )
-                            .input('stdcRlayCode',   sql.VarChar, stdcRlayCode  )
-                            .input('stdcItemCode',   sql.Int,     stdcItemCode  )
-                            .input('stdcStdVersion', sql.Int,     stdcStdVersion)
-                            .input('stdcSchoCode',   sql.VarChar, stdcSchoCode  )
-                            .query(sqlDeleteStandardCourse);
+        const result = await pool.query(sqlDeleteStandardCourse, [stdcStdCode, stdcOrgCode, stdcPurcCode, stdcBuCode, stdcCoursCode, stdcRlayCode, stdcItemCode, stdcStdVersion, stdcSchoCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {
@@ -951,29 +848,19 @@ const deleteStandardCourseByRlayCourseCode = async (
     try {
         
         const sqlDeleteStandardCourseByRlayCode = `
-            DELETE FROM dbo.tbl_standards_courses
-             WHERE stdc_std_code    = @stdcStdCode
-               and stdc_org_code    = @stdcOrgCode
-               and stdc_purc_code   = @stdcPurcCode
-               and stdc_bu_code     = @stdcBuCode
-               and stdc_cours_code  = @stdcCoursCode
-               and stdc_rlay_code   = @stdcRlayCode
-               and stdc_std_version = @stdcStdVersion
+            DELETE FROM tbl_standards_courses
+             WHERE stdc_std_code    = $1
+               and stdc_org_code    = $2
+               and stdc_purc_code   = $3
+               and stdc_bu_code     = $4
+               and stdc_cours_code  = $5
+               and stdc_rlay_code   = $6
+               and stdc_std_version = $7
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('stdcStdCode',    sql.VarChar, stdcStdCode )
-                            .input('stdcOrgCode',    sql.VarChar, stdcOrgCode )
-                            .input('stdcPurcCode',   sql.VarChar, stdcPurcCode )
-                            .input('stdcBuCode',     sql.VarChar, stdcBuCode )
-                            .input('stdcCoursCode',  sql.VarChar, stdcCoursCode )
-                            .input('stdcRlayCode',   sql.VarChar, stdcRlayCode )
-                            .input('stdcStdVersion', sql.VarChar, stdcStdVersion )
-                            .query(sqlDeleteStandardCourseByRlayCode);
+        const result = await pool.query(sqlDeleteStandardCourseByRlayCode, [stdcStdCode, stdcOrgCode, stdcPurcCode, stdcBuCode, stdcCoursCode, stdcRlayCode, stdcStdVersion]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

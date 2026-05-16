@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const getAllGapsSchedulledLogByGapscdId= async(gapscdId) => {
@@ -8,26 +8,22 @@ const getAllGapsSchedulledLogByGapscdId= async(gapscdId) => {
     try {
         const sqlGetAllGapsSchedulledLog = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.gapscl_id ASC) AS id
-            ,t1.gapscl_id             AS gapsclId     
-            ,t1.gapscl_gapscd_id      AS gapsclGapscdId  
-            ,t1.gapscl_log            AS gapsclLog   
-            ,t1.gapscl_creation_date  AS gapsclCreationDate 
+            ,t1.gapscl_id             AS "gapsclId"     
+            ,t1.gapscl_gapscd_id      AS "gapsclGapscdId"  
+            ,t1.gapscl_log            AS "gapsclLog"   
+            ,t1.gapscl_creation_date  AS "gapsclCreationDate" 
         FROM tbl_gaps_scheduled_logs t1
-        WHERE t1.gapscl_gapscd_id = @gapscdId
+        WHERE t1.gapscl_gapscd_id = $1
   
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('gapscdId', sql.Numeric,gapscdId)   
-                            .query(sqlGetAllGapsSchedulledLog);
+        const result = await pool.query(sqlGetAllGapsSchedulledLog, [gapscdId]);
 
         respuesta = {
             type: 'ok',   
             status: 200,
-            message: result?.recordset.length > 0 ? 'Log Programaciones encontradas' : 'No se encontraron Log Programaciones',
-            gapsSchedulledLog: result?.recordset
+            message: result?.rows.length > 0 ? 'Log Programaciones encontradas' : 'No se encontraron Log Programaciones',
+            gapsSchedulledLog: result?.rows
         };
 
     } catch (error) {
@@ -52,24 +48,19 @@ const createGapSchedulledLog= async ( {
     try {
         
         const sqlCreateGapSchedulledLog = `
-        INSERT INTO dbo.tbl_gaps_scheduled_logs
+        INSERT INTO tbl_gaps_scheduled_logs
                 (gapsclGapscdId  
                 ,gapsclLog   
                 ,gapsclCreationDate)
         VALUES
-                (@gapsclGapscdId
-                ,@gapsclLog
-                ,DBO.fncGetDate()) 
+                ($1
+                ,$2
+                ,NOW()) 
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('gapsclGapscdId',             sql.Numeric,gapsclGapscdId)         
-                            .input('gapsclLog',                  sql.VarChar,gapsclLog)         
-                            .query(sqlCreateGapSchedulledLog);
+        const result = await pool.query(sqlCreateGapSchedulledLog, [gapsclGapscdId, gapsclLog]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -96,18 +87,14 @@ const updateGapSchedulledLog = async( params, gapscdId ) => {
     try {
         
         const sqlUpdateGapSchedulledLog = `
-        UPDATE dbo.tbl_gaps_scheduled_logs
+        UPDATE tbl_gaps_scheduled_logs
            SET ${columnSet}
-         WHERE gapscl_id = @gapsclId
+         WHERE gapscl_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('gapsclId', sql.Numeric, gapsclId )
-                            .query(sqlUpdateGapSchedulledLog);
+        const result = await pool.query(sqlUpdateGapSchedulledLog, [gapsclId]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -122,16 +109,12 @@ const deleteGapSchedulledLog = async ( gapscdId) => {
         const sqlDeleteGapSchedulledLog  = `
         DELETE 
           FROM tbl_gaps_scheduled_logs
-         WHERE gapscl_id = @gapsclId
+         WHERE gapscl_id = $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('gapsclId',     sql.Numeric, gapsclId )
-                            .query(sqlDeleteGapSchedulledLog );
+        const result = await pool.query(sqlDeleteGapSchedulledLog, [gapsclId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

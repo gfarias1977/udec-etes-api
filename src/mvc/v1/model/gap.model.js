@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 const ProcessModel = require('./process.model');
 const ProcessLogModel = require('./processLog.model');
@@ -52,46 +52,32 @@ const getAllGapDemandVsStockByParameters = async (
             ELSE t1.[gapr_volume]
             END gaprVolume
             ,coalesce(t1.[gapr_observation],'CALCULO BRECHA NORMAL') gaprObservation
-        FROM [dbo].[tbl_gaps_dda_vs_stock] t1
+        FROM tbl_gaps_dda_vs_stock t1
     
-        LEFT JOIN [dbo].[tbl_campus] t2 ON t2.[camp_code]   = t1.[gapr_camp_code]   AND t2.[camp_org_code] = t1.[gapr_org_code]
-        LEFT JOIN [dbo].[tbl_schools] t3 ON t3.[scho_code]  = t1.[gapr_scho_code]   AND t3.[scho_org_code] = t1.[gapr_org_code]
-        LEFT JOIN [dbo].[tbl_courses] t4 ON t4.[cours_code] = t1.[gapr_cours_code]  AND t4.[cours_org_code]= t1.[gapr_org_code]
+        LEFT JOIN tbl_campus t2 ON t2.[camp_code]   = t1.[gapr_camp_code]   AND t2.[camp_org_code] = t1.[gapr_org_code]
+        LEFT JOIN tbl_schools t3 ON t3.[scho_code]  = t1.[gapr_scho_code]   AND t3.[scho_org_code] = t1.[gapr_org_code]
+        LEFT JOIN tbl_courses t4 ON t4.[cours_code] = t1.[gapr_cours_code]  AND t4.[cours_org_code]= t1.[gapr_org_code]
     
         WHERE
-                    [gapr_proc_id]         = coalesce(@gapProcId            ,[gapr_proc_id])
-                AND [gapr_academic_year]   = coalesce(@gapStdcAcademicYear  ,[gapr_academic_year])
-                AND [gapr_academic_period] = coalesce(@gapStdcAcademicPeriod,[gapr_academic_period])
-                AND [gapr_city_code]       = coalesce(@gapCityCode          ,[gapr_city_code])
-                AND [gapr_org_code]        = coalesce(@gapOrgCode           ,[gapr_org_code])
-                AND [gapr_camp_code]       = coalesce(@gapCampCode          ,[gapr_camp_code])
-                AND [gapr_scho_code]       = coalesce(@gapSchoCode          ,[gapr_scho_code])
-                AND [gapr_cours_code]      = coalesce(@gapCoursCode         ,[gapr_cours_code])
-                AND [gapr_item_code]       = coalesce(@gapItemCode          ,[gapr_item_code])
-                AND [gapr_volume]          = coalesce(@gapVolume            ,[gapr_volume]);
+                    [gapr_proc_id]         = coalesce($1            ,[gapr_proc_id])
+                AND [gapr_academic_year]   = coalesce($3  ,[gapr_academic_year])
+                AND [gapr_academic_period] = coalesce($4,[gapr_academic_period])
+                AND [gapr_city_code]       = coalesce($5          ,[gapr_city_code])
+                AND [gapr_org_code]        = coalesce($6           ,[gapr_org_code])
+                AND [gapr_camp_code]       = coalesce($7          ,[gapr_camp_code])
+                AND [gapr_scho_code]       = coalesce($8          ,[gapr_scho_code])
+                AND [gapr_cours_code]      = coalesce($9         ,[gapr_cours_code])
+                AND [gapr_item_code]       = coalesce($10          ,[gapr_item_code])
+                AND [gapr_volume]          = coalesce($11            ,[gapr_volume]);
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-            .request()
-            .input('gapProcId',               sql.BigInt,  gapProcId)               
-            .input('gapProcCode',             sql.VarChar, gapProcCode)           
-            .input('gapStdcAcademicYear',     sql.BigInt,  gapStdcAcademicYear)     
-            .input('gapStdcAcademicPeriod',   sql.BigInt,  gapStdcAcademicPeriod)   
-            .input('gapCityCode',             sql.VarChar, gapCityCode)              
-            .input('gapOrgCode',              sql.VarChar, gapOrgCode)              
-            .input('gapCampCode',             sql.VarChar, gapCampCode)                   
-            .input('gapSchoCode',             sql.VarChar, gapSchoCode)                     
-            .input('gapCoursCode',            sql.VarChar, gapCoursCode)                  
-            .input('gapItemCode',             sql.VarChar, gapItemCode)                     
-            .input('gapVolume',               sql.VarChar, gapVolume)                  
-            .query(sqlGetAllGapDemandVsStock);
+        const result = await pool.query(sqlGetAllGapDemandVsStock, [gapProcId, gapProcCode, gapStdcAcademicYear, gapStdcAcademicPeriod, gapCityCode, gapOrgCode, gapCampCode, gapSchoCode, gapCoursCode, gapItemCode, gapVolume]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Brecha dda vs stk encontradas' : 'No se encontraron Brechas dda vs stk',
-            gapsDda: result?.recordset
+            message: result?.rows.length > 0 ? 'Brecha dda vs stk encontradas' : 'No se encontraron Brechas dda vs stk',
+            gapsDda: result?.rows
         };
 
     } catch (error) {
@@ -153,46 +139,32 @@ const getAllGapStockVsDemandByParameters = async (
             ELSE t1.[gapr_volume]
             END gaprVolume
             ,coalesce(t1.[gapr_observation],'CALCULO BRECHA NORMAL') gaprObservation
-        FROM [dbo].[tbl_gaps_dda_vs_stock] t1
+        FROM tbl_gaps_dda_vs_stock t1
     
-        LEFT JOIN [dbo].[tbl_campus] t2 ON t2.[camp_code]   = t1.[gapr_camp_code]   AND t2.[camp_org_code] = t1.[gapr_org_code]
-        LEFT JOIN [dbo].[tbl_schools] t3 ON t3.[scho_code]  = t1.[gapr_scho_code]   AND t3.[scho_org_code] = t1.[gapr_org_code]
-        LEFT JOIN [dbo].[tbl_courses] t4 ON t4.[cours_code] = t1.[gapr_cours_code]  AND t4.[cours_org_code]= t1.[gapr_org_code]
+        LEFT JOIN tbl_campus t2 ON t2.[camp_code]   = t1.[gapr_camp_code]   AND t2.[camp_org_code] = t1.[gapr_org_code]
+        LEFT JOIN tbl_schools t3 ON t3.[scho_code]  = t1.[gapr_scho_code]   AND t3.[scho_org_code] = t1.[gapr_org_code]
+        LEFT JOIN tbl_courses t4 ON t4.[cours_code] = t1.[gapr_cours_code]  AND t4.[cours_org_code]= t1.[gapr_org_code]
     
         WHERE
-                    [gapr_proc_id]         = coalesce(@gapProcId            ,[gapr_proc_id])
-                AND [gapr_academic_year]   = coalesce(@gapStdcAcademicYear  ,[gapr_academic_year])
-                AND [gapr_academic_period] = coalesce(@gapStdcAcademicPeriod,[gapr_academic_period])
-                AND [gapr_city_code]       = coalesce(@gapCityCode          ,[gapr_city_code])
-                AND [gapr_org_code]        = coalesce(@gapOrgCode           ,[gapr_org_code])
-                AND [gapr_camp_code]       = coalesce(@gapCampCode          ,[gapr_camp_code])
-                AND [gapr_scho_code]       = coalesce(@gapSchoCode          ,[gapr_scho_code])
-                AND [gapr_cours_code]      = coalesce(@gapCoursCode         ,[gapr_cours_code])
-                AND [gapr_item_code]       = coalesce(@gapItemCode          ,[gapr_item_code])
-                AND [gapr_volume]          = coalesce(@gapVolume            ,[gapr_volume]);
+                    [gapr_proc_id]         = coalesce($1            ,[gapr_proc_id])
+                AND [gapr_academic_year]   = coalesce($3  ,[gapr_academic_year])
+                AND [gapr_academic_period] = coalesce($4,[gapr_academic_period])
+                AND [gapr_city_code]       = coalesce($5          ,[gapr_city_code])
+                AND [gapr_org_code]        = coalesce($6           ,[gapr_org_code])
+                AND [gapr_camp_code]       = coalesce($7          ,[gapr_camp_code])
+                AND [gapr_scho_code]       = coalesce($8          ,[gapr_scho_code])
+                AND [gapr_cours_code]      = coalesce($9         ,[gapr_cours_code])
+                AND [gapr_item_code]       = coalesce($10          ,[gapr_item_code])
+                AND [gapr_volume]          = coalesce($11            ,[gapr_volume]);
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-            .request()
-            .input('gapProcId',               sql.BigInt,  gapProcId)               
-            .input('gapProcCode',             sql.VarChar, gapProcCode)           
-            .input('gapStdcAcademicYear',     sql.BigInt,  gapStdcAcademicYear)     
-            .input('gapStdcAcademicPeriod',   sql.BigInt,  gapStdcAcademicPeriod)   
-            .input('gapCityCode',             sql.VarChar, gapCityCode)              
-            .input('gapOrgCode',              sql.VarChar, gapOrgCode)              
-            .input('gapCampCode',             sql.VarChar, gapCampCode)                   
-            .input('gapSchoCode',             sql.VarChar, gapSchoCode)                     
-            .input('gapCoursCode',            sql.VarChar, gapCoursCode)                  
-            .input('gapItemCode',             sql.VarChar, gapItemCode)                     
-            .input('gapVolume',               sql.VarChar, gapVolume)                  
-            .query(sqlGetAllGapStockVsDemand);
+        const result = await pool.query(sqlGetAllGapStockVsDemand, [gapProcId, gapProcCode, gapStdcAcademicYear, gapStdcAcademicPeriod, gapCityCode, gapOrgCode, gapCampCode, gapSchoCode, gapCoursCode, gapItemCode, gapVolume]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Brecha stk vs dda encontradas' : 'No se encontraron Brechas stk vs dda',
-            gapsStk: result?.recordset
+            message: result?.rows.length > 0 ? 'Brecha stk vs dda encontradas' : 'No se encontraron Brechas stk vs dda',
+            gapsStk: result?.rows
         };
 
     } catch (error) {
@@ -231,53 +203,42 @@ const gapCalculation = async ({
         , procDemand: header.procDemand
         , procStandard: header.procStandard
     }
+    const client = await pool.connect();
     try {
-        const pool = await poolPromise;
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
+        await client.query('BEGIN');
 
         // Insertar registro en tabla de procesos.
         let resultProcess = await ProcessModel.createProcess(headerProcess);
         let log = {
              proclProcId:resultProcess.procId
             ,proclLog : `Gap Calculation ${headerProcess.procCode} started at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
-        }
-        //crea registro de log
+        };
         let resultLogStart = await ProcessLogModel.createProcessLog(log);
 
-        //ejecuta package p01_run_brecha_bib con los parametros de proceso de demanda, stock y standard
-        
-        const result = await pool
-                            .request()
-                            .input("procId",       sql.BigInt      , resultProcess.procId )                            
-                            .input("procCode",     sql.VarChar(50) , headerProcess.procCode )
-                            .input("procPurcCode", sql.VarChar(6)  , headerProcess.procPurcCode )
-                            .input("procStock",    sql.BigInt      , headerProcess.procStock )
-                            .input("procDemand",   sql.BigInt      , headerProcess.procDemand )
-                            .input("procStandard", sql.BigInt      , headerProcess.procStandard )
-                            .execute('p01_run_brecha_bib');
+        // Ejecuta función PostgreSQL p01_run_brecha_bib
+        // TODO: La función p01_run_brecha_bib debe ser creada en PostgreSQL
+        const result = await client.query(
+            'SELECT * FROM p01_run_brecha_bib($1, $2, $3, $4, $5, $6)',
+            [resultProcess.procId, headerProcess.procCode, headerProcess.procPurcCode,
+             headerProcess.procStock, headerProcess.procDemand, headerProcess.procStandard]
+        );
 
-  
-        transaction.commit();
-       // console.log(result);
+        await client.query('COMMIT');
         respuesta = {
             type: 'ok',
             status: 200,
             message: {status:"Brecha Calculation Succes",
-                      //rows:result.rowsAffected,
-                      //procId:resultProcess.procId,
                       procCode:headerProcess.procCode},
-        };    
-        
+        };
+
         log = {
             proclProcId:resultProcess.procId
            ,proclLog : `Gap Calculation Success:${headerProcess.procCode} ${JSON.stringify(respuesta.message)} at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
-       }
-       let resultLogSuccess = await ProcessLogModel.createProcessLog(log);           
+        };
+        let resultLogSuccess = await ProcessLogModel.createProcessLog(log);
 
-        //});
     } catch (error) {
-        transaction.rollback();
+        await client.query('ROLLBACK');
         respuesta = {
             type: 'error',
             status: 400,
@@ -285,10 +246,12 @@ const gapCalculation = async ({
         };
 
         log = {
-            proclProcId:resultProcess.procId
+            proclProcId:resultProcess ? resultProcess.procId : null
            ,proclLog : `Gap Calculation ${headerProcess.procCode} error at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
-       }
-        let resultProcessEnd = await ProcessLogModel.createProcessLog(log);            
+        };
+        let resultProcessEnd = await ProcessLogModel.createProcessLog(log);
+    } finally {
+        client.release();
     };
 
     return respuesta;
@@ -301,22 +264,19 @@ const getAllGapPeriodsDda = async() => {
     try {
         const sqlDemandPeriods = `
         SELECT DISTINCT 
-             [gapr_academic_year]            AS gaprAcademicYear
-            ,[gapr_academic_period]          AS gaprAcademicPeriod
-            ,CONCAT([gapr_academic_year] , '-' , [gapr_academic_period]) AS gaprDemandPeriod
-        FROM [dbo].[tbl_gaps_dda_vs_stock]
+             [gapr_academic_year]            AS "gaprAcademicYear"
+            ,[gapr_academic_period]          AS "gaprAcademicPeriod"
+            ,CONCAT([gapr_academic_year] , '-' , [gapr_academic_period]) AS "gaprDemandPeriod"
+        FROM tbl_gaps_dda_vs_stock
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlDemandPeriods);
+        const result = await pool.query(sqlDemandPeriods);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Periodos de la Brecha dda encontrados' : 'No se encontraron Periodos de la Brecha dda',
-            gapPeriodsDda: result?.recordset
+            message: result?.rows.length > 0 ? 'Periodos de la Brecha dda encontrados' : 'No se encontraron Periodos de la Brecha dda',
+            gapPeriodsDda: result?.rows
         };
 
     } catch (error) {
@@ -337,22 +297,19 @@ const getAllGapPeriodsStk = async() => {
     try {
         const sqlStkPeriods = `
         SELECT DISTINCT 
-             [gapr_academic_year]            AS gaprAcademicYear
-            ,[gapr_academic_period]          AS gaprAcademicPeriod
-            ,CONCAT([gapr_academic_year] , '-' , [gapr_academic_period]) AS gaprDemandPeriod
-        FROM [dbo].[tbl_gaps_stock_vs_dda]
+             [gapr_academic_year]            AS "gaprAcademicYear"
+            ,[gapr_academic_period]          AS "gaprAcademicPeriod"
+            ,CONCAT([gapr_academic_year] , '-' , [gapr_academic_period]) AS "gaprDemandPeriod"
+        FROM tbl_gaps_stock_vs_dda
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlStkPeriods);
+        const result = await pool.query(sqlStkPeriods);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Periodos de la Brecha stk encontrados' : 'No se encontraron Periodos de la Brecha stk',
-            gapPeriodsStk: result?.recordset
+            message: result?.rows.length > 0 ? 'Periodos de la Brecha stk encontrados' : 'No se encontraron Periodos de la Brecha stk',
+            gapPeriodsStk: result?.rows
         };
 
     } catch (error) {

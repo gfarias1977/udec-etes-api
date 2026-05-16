@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const itemAttributeExist = async ( itmaCode, itmaPurcCode ) => {
@@ -7,28 +7,23 @@ const itemAttributeExist = async ( itmaCode, itmaPurcCode ) => {
     let respuesta;
     try {
         const sqlitemAttributExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Atributos de bienes ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_item_attributes t1
-                    WHERE t1.itma_code           =   @itmaCode
-                    and t1.itma_purc_code      =   @itmaPurcCode
+                    WHERE t1.itma_code           =   $1
+                    and t1.itma_purc_code      =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmaCode',  sql.VarChar, itmaCode )
-                            .input('itmaPurcCode',  sql.VarChar, itmaPurcCode )
-                            .query(sqlitemAttributExist);
+        const result = await pool.query(sqlitemAttributExist, [itmaCode, itmaPurcCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -49,27 +44,24 @@ const getAllItemAttributes = async() => {
     try {
         const sqlGetAllItemAttributes = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.itma_code ASC) AS id   
-            ,t1.itma_code            AS itmaCode
-            ,t1.itma_purc_code       AS itmaPurcCode
-            ,t2.purc_name            AS itmaPurcName
-            ,t1.itma_order           AS itmaOrder
-            ,t1.itma_creation_date   AS itmaCreationDate
-            ,t1.itma_status          AS itmaStatus
-        FROM dbo.tbl_item_attributes t1
-            LEFT JOIN dbo.tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
+            ,t1.itma_code            AS "itmaCode"
+            ,t1.itma_purc_code       AS "itmaPurcCode"
+            ,t2.purc_name            AS "itmaPurcName"
+            ,t1.itma_order           AS "itmaOrder"
+            ,t1.itma_creation_date   AS "itmaCreationDate"
+            ,t1.itma_status          AS "itmaStatus"
+        FROM tbl_item_attributes t1
+            LEFT JOIN tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
          order by t1.itma_order asc
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllItemAttributes);
+        const result = await pool.query(sqlGetAllItemAttributes);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Atributos de Bienes encontrados' : 'No se encontraron Atributtos de Bienes',
-            itemAttributes: result?.recordset
+            message: result?.rows.length > 0 ? 'Atributos de Bienes encontrados' : 'No se encontraron Atributtos de Bienes',
+            itemAttributes: result?.rows
         };
 
     } catch (error) {
@@ -90,29 +82,25 @@ const getAllItemAttributesByPurcCode = async(itmaPurcCode) => {
     try {
         const sqlGetAllItemAttributesByPurcCode = `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.itma_code ASC) AS id   
-            ,t1.itma_code            AS itmaCode
-            ,t1.itma_purc_code       AS itmaPurcCode
-            ,t2.purc_name            AS itmaPurcName
-            ,t1.itma_order           AS itmaOrder
-            ,t1.itma_creation_date   AS itmaCreationDate
-            ,t1.itma_status          AS itmaStatus
-        FROM dbo.tbl_item_attributes t1
-            LEFT JOIN dbo.tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
-        WHERE t1.itma_purc_code = @itmaPurcCode
+            ,t1.itma_code            AS "itmaCode"
+            ,t1.itma_purc_code       AS "itmaPurcCode"
+            ,t2.purc_name            AS "itmaPurcName"
+            ,t1.itma_order           AS "itmaOrder"
+            ,t1.itma_creation_date   AS "itmaCreationDate"
+            ,t1.itma_status          AS "itmaStatus"
+        FROM tbl_item_attributes t1
+            LEFT JOIN tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
+        WHERE t1.itma_purc_code = $1
          order by t1.itma_order asc
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmaPurcCode',  sql.VarChar, itmaPurcCode )
-                            .query(sqlGetAllItemAttributesByPurcCode);
+        const result = await pool.query(sqlGetAllItemAttributesByPurcCode, [itmaPurcCode]);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Atributos de Bienes encontrados' : 'No se encontraron Atributtos de Bienes',
-            itemAttributes: result?.recordset
+            message: result?.rows.length > 0 ? 'Atributos de Bienes encontrados' : 'No se encontraron Atributtos de Bienes',
+            itemAttributes: result?.rows
         };
 
     } catch (error) {
@@ -134,27 +122,22 @@ const getItemAttributeById = async( itmaCode, itmaPurcCode) => {
         
         const sqlGetItemAttributesByID = `
             SELECT ROW_NUMBER() OVER(ORDER BY  t1.itma_code ASC) AS id   
-                ,t1.itma_code            AS itmaCode
-                ,t1.itma_purc_code       AS itmaPurcCode
-                ,t2.purc_name            AS itmaPurcName
-                ,t1.itma_order           AS itmaOrder
-                ,t1.itma_creation_date   AS itmaCreationDate
-                ,t1.itma_status          AS itmaStatus
-            FROM dbo.tbl_item_attributes t1
-                LEFT JOIN dbo.tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
-            WHERE t1.itma_code = @itmaCode
-                and  t1.itma_purc_code = @itmaPurcCode
+                ,t1.itma_code            AS "itmaCode"
+                ,t1.itma_purc_code       AS "itmaPurcCode"
+                ,t2.purc_name            AS "itmaPurcName"
+                ,t1.itma_order           AS "itmaOrder"
+                ,t1.itma_creation_date   AS "itmaCreationDate"
+                ,t1.itma_status          AS "itmaStatus"
+            FROM tbl_item_attributes t1
+                LEFT JOIN tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
+            WHERE t1.itma_code = $1
+                and  t1.itma_purc_code = $2
             order by t1.itma_order asc
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmaCode',      sql.VarChar, itmaCode )                            
-                            .input('itmaPurcCode',  sql.VarChar, itmaPurcCode )
-                            .query(sqlGetItemAttributesByID);
+        const result = await pool.query(sqlGetItemAttributesByID, [itmaCode, itmaPurcCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -168,30 +151,26 @@ const getAllItemAttributesByName = async(itmaCode) => {
     const qryFindItemAttributes = 
     `
         SELECT ROW_NUMBER() OVER(ORDER BY  t1.itma_code ASC) AS id   
-            ,t1.itma_code            AS itmaCode
-            ,t1.itma_purc_code       AS itmaPurcCode
-            ,t2.purc_name            AS itmaPurcName
-            ,t1.itma_order           AS itmaOrder
-            ,t1.itma_creation_date   AS itmaCreationDate
-            ,t1.itma_status          AS itmaStatus
-        FROM dbo.tbl_item_attributes t1
-            LEFT JOIN dbo.tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
-        WHERE UPPER(t1.itma_code)  LIKE UPPER(CONCAT('%',@itmaCode,'%'))
+            ,t1.itma_code            AS "itmaCode"
+            ,t1.itma_purc_code       AS "itmaPurcCode"
+            ,t2.purc_name            AS "itmaPurcName"
+            ,t1.itma_order           AS "itmaOrder"
+            ,t1.itma_creation_date   AS "itmaCreationDate"
+            ,t1.itma_status          AS "itmaStatus"
+        FROM tbl_item_attributes t1
+            LEFT JOIN tbl_purchase_areas t2 on t2.purc_code = t1.itma_purc_code
+        WHERE UPPER(t1.itma_code)  LIKE UPPER(CONCAT('%',$1,'%'))
         order by t1.itma_order asc    
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmaCode', sql.VarChar, itmaCode )
-                            .query(qryFindItemAttributes);
+        const result = await pool.query(qryFindItemAttributes, [itmaCode]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Atributtos de Bienes encontradas' : 'No se encontraron Atributtos de Bienes',
-            itemAttributes: result?.recordset
+            message: result?.rows.length > 0 ? 'Atributtos de Bienes encontradas' : 'No se encontraron Atributtos de Bienes',
+            itemAttributes: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -215,30 +194,23 @@ const createItemAttribute = async ( {
     try {
         
         const sqlCreateItemAttribute = `
-            INSERT INTO dbo.tbl_item_attributes
+            INSERT INTO tbl_item_attributes
                     (itma_code
                     ,itma_purc_code
                     ,itma_order
                     ,itma_creation_date
                     ,itma_status)
             VALUES
-                    (@itmaCode
-                    ,@itmaPurcCode
-                    ,@itmaOrder
-                    ,DBO.fncGetDate()
-                    ,@itmaStatus)
+                    ($1
+                    ,$2
+                    ,$3
+                    ,NOW()
+                    ,$4)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmaCode',          sql.VarChar,  itmaCode )             
-                            .input('itmaPurcCode',      sql.VarChar,  itmaPurcCode )
-                            .input('itmaOrder',         sql.Int,      itmaOrder )
-                            .input('itmaStatus',        sql.VarChar,  itmaStatus )                                                                                                                                                                                                                                
-                            .query(sqlCreateItemAttribute);
+        const result = await pool.query(sqlCreateItemAttribute, [itmaCode, itmaPurcCode, itmaOrder, itmaStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -267,18 +239,13 @@ const updateItemAttribute = async( params, itmaCode,itmaPurcCode ) => {
         const sqlUpdateItemAttribute= `
         UPDATE tbl_item_attributes
            SET ${columnSet}
-         WHERE itma_code = @itmaCode
-         and itma_purc_code = @itmaPurcCode
+         WHERE itma_code = $1
+         and itma_purc_code = $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmaCode',         sql.VarChar, itmaCode )
-                            .input('itmaPurcCode',     sql.VarChar, itmaPurcCode )
-                            .query(sqlUpdateItemAttribute);
+        const result = await pool.query(sqlUpdateItemAttribute, [itmaCode, itmaPurcCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -293,18 +260,13 @@ const deleteItemAttribute = async ( itmaCode, itmaPurcCode ) => {
         const sqlDeleteItemAttribute = `
         DELETE 
           FROM tbl_item_attributes
-        WHERE itma_code = @itmaCode
-          and itma_purc_code = @itmaPurcCode
+        WHERE itma_code = $1
+          and itma_purc_code = $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('itmaCode',     sql.VarChar, itmaCode )
-                            .input('itmaPurcCode',     sql.VarChar, itmaPurcCode )
-                            .query(sqlDeleteItemAttribute);
+        const result = await pool.query(sqlDeleteItemAttribute, [itmaCode, itmaPurcCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

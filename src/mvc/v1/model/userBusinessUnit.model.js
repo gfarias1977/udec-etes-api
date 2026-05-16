@@ -1,5 +1,5 @@
-const { MAX } = require('mssql');
-const { sql, poolPromise } = require('../../../services/database');
+
+const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 
 const UserBusinessUnitExist = async (usbuUserId, usbuBuCode ) => {
@@ -7,28 +7,23 @@ const UserBusinessUnitExist = async (usbuUserId, usbuBuCode ) => {
     let respuesta;
     try {
         const sqlUserBusinessUnitExist = `
-            SELECT STRING_AGG( t10.validacion, CHAR(13) ) WITHIN GROUP (ORDER BY t10.validacion)  AS  validacion
+            SELECT string_agg(t10.validacion, chr(13) ORDER BY t10.validacion)  AS  validacion
                 FROM (
                     SELECT 'Usuario Unidad de Negocio ya existe.'  AS  validacion,
-                            COUNT(*) AS TOTAL
+                            COUNT(*) AS "TOTAL"
                         FROM tbl_users_business_units t1
-                    WHERE t1.usbu_user_id    =   @usbuUserId
-                      and t1.usbu_bu_code    =   @usbuBuCode
+                    WHERE t1.usbu_user_id    =   $1
+                      and t1.usbu_bu_code    =   $2
                     ) t10
             WHERE t10.TOTAL    >   0
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserId',  sql.Int,usbuUserId )
-                            .input('usbuBuCode',  sql.VarChar,usbuBuCode )
-                            .query(sqlUserBusinessUnitExist);
+        const result = await pool.query(sqlUserBusinessUnitExist, [usbuUserId, usbuBuCode]);
 
         respuesta = {
-            type: result?.recordset[0].validacion ? 'error' : 'ok',
+            type: result?.rows[0].validacion ? 'error' : 'ok',
             status: 200,
-            message: result?.recordset[0].validacion,
+            message: result?.rows[0].validacion,
         };
 
     } catch (error) {
@@ -49,27 +44,24 @@ const getAllUserBusinessUnits = async() => {
     try {
         const sqlGetAllUserBusinessUnit = `
             SELECT ROW_NUMBER() OVER(ORDER BY t1.usbu_user_id,t1.usbu_bu_code ASC) AS id 
-                ,t1.usbu_user_id            AS usbuUserId
-                ,t1.usbu_bu_code            AS usbuBuCode
-                ,t2.bu_name                 AS usbuBuName                
-                ,t1.usbu_creation_date      AS usbuBuCreationDate
-                ,t1.usbu_status             AS usbuBuStatus
+                ,t1.usbu_user_id            AS "usbuUserId"
+                ,t1.usbu_bu_code            AS "usbuBuCode"
+                ,t2.bu_name                 AS "usbuBuName"                
+                ,t1.usbu_creation_date      AS "usbuBuCreationDate"
+                ,t1.usbu_status             AS "usbuBuStatus"
             FROM tbl_users_business_units t1,
                  tbl_business_units t2
             WHERE t1.usbu_bu_code = t2.bu_code 
             order by t2.bu_name
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .query(sqlGetAllUserBusinessUnit);
+        const result = await pool.query(sqlGetAllUserBusinessUnit);
 
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios Unidad de Negocio encontrados' : 'No se encontraron Usuarios-Unidad de Negocio',
-            userBusinessUnits: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios Unidad de Negocio encontrados' : 'No se encontraron Usuarios-Unidad de Negocio',
+            userBusinessUnits: result?.rows
         };
 
     } catch (error) {
@@ -91,27 +83,22 @@ const getUserBusinessUnitById = async(usbuUserId, usbuBuCode) => {
         
         const sqlGetUserBusinessUnitByID = `
             SELECT ROW_NUMBER() OVER(ORDER BY t1.usbu_user_id,t1.usbu_bu_code ASC) AS id 
-                ,t1.usbu_user_id            AS usbuUserId
-                ,t1.usbu_bu_code            AS usbuBuCode
-                ,t2.bu_name                 AS usbuBuName                
-                ,t1.usbu_creation_date      AS usbuBuCreationDate
-                ,t1.usbu_status             AS usbuBuStatus
+                ,t1.usbu_user_id            AS "usbuUserId"
+                ,t1.usbu_bu_code            AS "usbuBuCode"
+                ,t2.bu_name                 AS "usbuBuName"                
+                ,t1.usbu_creation_date      AS "usbuBuCreationDate"
+                ,t1.usbu_status             AS "usbuBuStatus"
             FROM tbl_users_business_units t1,
                  tbl_business_units t2
             WHERE t1.usbu_bu_code    = t2.bu_code 
-                and t1.usbu_user_id  =   @usbuUserId
-                and t1.usbu_bu_code  =   @usbuBuCode
+                and t1.usbu_user_id  =   $1
+                and t1.usbu_bu_code  =   $2
             order by t2.bu_name
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserId',  sql.Int,usbuUserId )
-                            .input('usbuBuCode',  sql.VarChar,usbuBuCode )
-                            .query(sqlGetUserBusinessUnitByID);
+        const result = await pool.query(sqlGetUserBusinessUnitByID, [usbuUserId, usbuBuCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -126,29 +113,25 @@ const getAllBusinessUnitsByUserId = async(usbuUserId) => {
         
         const sqlGetUserBusinessUnitsByUserID = `
             SELECT ROW_NUMBER() OVER(ORDER BY t2.usbu_user_id,t2.usbu_bu_code ASC) AS id 
-                ,coalesce(t2.usbu_user_id,@usbuUserId)   AS usbuUserId  
-                ,t1.bu_code                              AS usbuBuCode
-                ,t1.bu_name                              AS usbuBuName                
-                ,t2.usbu_creation_date                   AS usbuBuCreationDate
-                ,coalesce(t2.usbu_status, 'N')           AS usbuBuAsigned
-                ,coalesce(t2.usbu_status, t1.bu_status)  AS usbuBuStatus
+                ,coalesce(t2.usbu_user_id,$1)   AS "usbuUserId"  
+                ,t1.bu_code                              AS "usbuBuCode"
+                ,t1.bu_name                              AS "usbuBuName"                
+                ,t2.usbu_creation_date                   AS "usbuBuCreationDate"
+                ,coalesce(t2.usbu_status, 'N')           AS "usbuBuAsigned"
+                ,coalesce(t2.usbu_status, t1.bu_status)  AS "usbuBuStatus"
             FROM  tbl_business_units t1
                 left join  tbl_users_business_units t2 on t2.usbu_bu_code = t1.bu_code  
-            and t2.usbu_user_id    =  @usbuUserId
+            and t2.usbu_user_id    =  $1
             order by t1.bu_name, coalesce(t2.usbu_status, 'N')
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserId',    sql.Int,    usbuUserId   )
-                            .query(sqlGetUserBusinessUnitsByUserID);
+        const result = await pool.query(sqlGetUserBusinessUnitsByUserID, [usbuUserId]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuario Unidades de Negocio encontrados' : 'No se encontraron Usuario Unidades de Negocio',
-            userBusinessUnits: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuario Unidades de Negocio encontrados' : 'No se encontraron Usuario Unidades de Negocio',
+            userBusinessUnits: result?.rows
     };
                 
     } catch (error) {
@@ -171,29 +154,24 @@ const getUserBusinessUnitByUserName = async(usbuUserName, usbuBuCode) => {
         
         const sqlGetUserBusinessUnitByUserName = `
             SELECT ROW_NUMBER() OVER(ORDER BY t1.usbu_user_id,t1.usbu_bu_code ASC) AS id 
-                ,t1.usbu_user_id            AS usbuUserId
-                ,t1.usbu_bu_code            AS usbuBuCode
-                ,t3.bu_name                 AS usbuBuName 
-                ,t1.usbu_creation_date      AS usbuBuCreationDate
-                ,t1.usbu_status             AS usbuBuStatus
+                ,t1.usbu_user_id            AS "usbuUserId"
+                ,t1.usbu_bu_code            AS "usbuBuCode"
+                ,t3.bu_name                 AS "usbuBuName" 
+                ,t1.usbu_creation_date      AS "usbuBuCreationDate"
+                ,t1.usbu_status             AS "usbuBuStatus"
             FROM tbl_users_business_units t1,
                  tbl_user t2,
                  tbl_business_units t3
             WHERE t1.usbu_bu_code   =   t3.bu_code 
               and t1.usbu_user_id   =   t2.user_id
-              and t2.user_name      =   @usbuUserName
-              and t1.usbu_bu_code   =   @usbuBuCode
+              and t2.user_name      =   $1
+              and t1.usbu_bu_code   =   $2
             order by t3.bu_name
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserName',  sql.VarChar, usbuUserName   )
-                            .input('usbuBuCode',    sql.VarChar, usbuBuCode )
-                            .query(sqlGetUserBusinessUnitByUserName);
+        const result = await pool.query(sqlGetUserBusinessUnitByUserName, [usbuUserName, usbuBuCode]);
         
-        return result?.recordset[0];
+        return result?.rows[0];
     } catch (error) {
         console.log(error);
     };
@@ -207,34 +185,30 @@ const getAllUserBusinessUnitByName = async(usbuName) => {
     const qryFindUserBusinessUnit = 
     `
             SELECT ROW_NUMBER() OVER(ORDER BY t1.usbu_user_id,t1.usbu_bu_code ASC) AS id 
-                ,t1.usbu_user_id            AS usbuUserId
-                ,t1.usbu_bu_code            AS usbuBuCode
-                ,t3.bu_name                 AS usbuBuName                
-                ,t1.usbu_creation_date      AS usbuBuCreationDate
-                ,t1.usbu_status             AS usbuBuStatus
+                ,t1.usbu_user_id            AS "usbuUserId"
+                ,t1.usbu_bu_code            AS "usbuBuCode"
+                ,t3.bu_name                 AS "usbuBuName"                
+                ,t1.usbu_creation_date      AS "usbuBuCreationDate"
+                ,t1.usbu_status             AS "usbuBuStatus"
             FROM tbl_users_business_units t1,
                 tbl_user t2,
                 tbl_business_units t3
             WHERE t1.usbu_user_id      =  t2.user_id  
               and t1.usbu_bu_code      =  t3.bu_code
-              and (UPPER(t2.user_first_name)   LIKE UPPER(CONCAT('%',@usbuName,'%')) OR
-                   UPPER(t3.bu_name)           LIKE UPPER(CONCAT('%',@usbuName,'%')) ) 
+              and (UPPER(t2.user_first_name)   LIKE UPPER(CONCAT('%',$1,'%')) OR
+                   UPPER(t3.bu_name)           LIKE UPPER(CONCAT('%',$1,'%')) ) 
             and t1.usbu_status = 'S' 
             order by t3.bu_name
     `;
     
     try {
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuName', sql.VarChar,usbuName )
-                            .query(qryFindUserBusinessUnit);
+        const result = await pool.query(qryFindUserBusinessUnit, [usbuName]);
         
         respuesta = {
             type: 'ok',
             status: 200,
-            message: result?.recordset.length > 0 ? 'Usuarios Unidad de Negocio encontradas' : 'No se encontraron Usuarios-Unidad de Negocio',
-            userBusinessUnits: result?.recordset
+            message: result?.rows.length > 0 ? 'Usuarios Unidad de Negocio encontradas' : 'No se encontraron Usuarios-Unidad de Negocio',
+            userBusinessUnits: result?.rows
         };
     } catch (error) {
         respuesta = {
@@ -262,21 +236,15 @@ const createUserBusinessUnit = async ( {
                     ,usbu_creation_date
                     ,usbu_status)
             VALUES
-                    (@usbuUserId
-                    ,@usbuBuCode
-                    ,DBO.fncGetDate()
-                    ,@usbuStatus)
+                    ($1
+                    ,$2
+                    ,NOW()
+                    ,$3)
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserId',   sql.Int,     usbuUserId  )             
-                            .input('usbuBuCode',   sql.VarChar, usbuBuCode)
-                            .input('usbuStatus',   sql.VarChar, usbuStatus  )
-                            .query(sqlCreateUserBusinessUnit);
+        const result = await pool.query(sqlCreateUserBusinessUnit, [usbuUserId, usbuBuCode, usbuStatus]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
@@ -304,18 +272,13 @@ const updateUserBusinessUnit = async( params,usbuUserId, usbuBuCode) => {
         const sqlUpdateUserBusinessUnit= `
         UPDATE tbl_users_business_units
            SET ${columnSet}
-        WHERE usbu_user_id      =   @usbuUserId
-          and usbu_bu_code      =   @usbuBuCode
+        WHERE usbu_user_id      =   $1
+          and usbu_bu_code      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserId',     sql.Int,     usbuUserId   )             
-                            .input('usbuBuCode',     sql.VarChar, usbuBuCode )
-                            .query(sqlUpdateUserBusinessUnit);
+        const result = await pool.query(sqlUpdateUserBusinessUnit, [usbuUserId, usbuBuCode]);
         
-        return result?.rowsAffected[0];
+        return result?.rowCount;
     } catch (error) {
         console.log(error);
     };
@@ -330,18 +293,13 @@ const deleteUserBusinessUnit = async (usbuUserId, usbuBuCode) => {
         const sqlDeleteUserBusinessUnit = `
         DELETE 
           FROM tbl_users_business_units
-        WHERE usbu_user_id      =   @usbuUserId
-          and usbu_bu_code      =   @usbuBuCode
+        WHERE usbu_user_id      =   $1
+          and usbu_bu_code      =   $2
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserId',       sql.VarChar, usbuUserId   )             
-                            .input('usbuBuCode',     sql.VarChar, usbuBuCode )
-                            .query(sqlDeleteUserBusinessUnit);
+        const result = await pool.query(sqlDeleteUserBusinessUnit, [usbuUserId, usbuBuCode]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {
@@ -358,16 +316,12 @@ const deleteUserBusinessUnitsByUserId = async (usbuUserId) => {
         const sqlDeleteUserBusinessUnits = `
         DELETE 
           FROM tbl_users_business_units
-        WHERE usbu_user_id   =   @usbuUserId
+        WHERE usbu_user_id   =   $1
         `;
 
-        const pool = await poolPromise;
-        const result = await pool
-                            .request()
-                            .input('usbuUserId',     sql.VarChar, usbuUserId )             
-                            .query(sqlDeleteUserBusinessUnits);
+        const result = await pool.query(sqlDeleteUserBusinessUnits, [usbuUserId]);
         
-        const affectedRows = result.rowsAffected[0];
+        const affectedRows = result.rowCount;
 
         return affectedRows;
     } catch (error) {

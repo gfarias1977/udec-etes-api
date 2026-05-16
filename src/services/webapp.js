@@ -13,7 +13,7 @@ const swaggerUi = require('swagger-ui-express')
 const app = express();
 
 // enabling cors for all requests by using cors middleware
-const whitelist = ['https://etes-app-dev.herokuapp.com', 'https://etes-app-prod.herokuapp.com', 'http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:3005'];
+const whitelist = ['https://udec-etes-app-six.vercel.app', 'http://localhost:3005'];
 
 // Enable pre-flight
 // app.options("*", cors());
