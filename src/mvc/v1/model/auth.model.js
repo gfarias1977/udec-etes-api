@@ -45,7 +45,7 @@ const findUserByID = async( userID, companyId ) => {
                             ON t01.usro_role_id = t02.role_id
                         WHERE t01.usro_user_id = t1.user_id
                             AND t02.role_status = 'S'
-                    ) as userRoles
+                    ) as "userRoles"
             FROM tbl_user t1
             WHERE t1.user_id                =   $1
                 AND t1.user_company_id        =   $2
