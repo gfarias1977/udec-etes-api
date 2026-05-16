@@ -13,7 +13,7 @@ const swaggerUi = require('swagger-ui-express')
 const app = express();
 
 // enabling cors for all requests by using cors middleware
-const whitelist = ['https://udec-etes-app-six.vercel.app', 'http://localhost:3005'];
+const whitelist = ['https://udec-etes-app-six.vercel.app', 'http://localhost:3007'];
 
 // Enable pre-flight
 // app.options("*", cors());
