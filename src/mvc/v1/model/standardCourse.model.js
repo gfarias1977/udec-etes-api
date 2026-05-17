@@ -430,7 +430,7 @@ const getStandardCourseByStandardUserId = async(
             
             )            
                         
-                        SELECT DISTINCT 
+                        SELECT 
                                 ROW_NUMBER() OVER(ORDER BY  t1.std_code ASC) AS "standardId"
                                 ,t1.std_code                  AS "stdCode"                
                                 ,t1.std_org_code              AS "stdOrgCode"            
@@ -449,89 +449,78 @@ const getStandardCourseByStandardUserId = async(
                                 ,COALESCE(t1.std_available_for_purchase, 'N') AS "stdAvailableForPurchase"
                                 ,t1.std_status AS "stdStatus"
                                 , (SELECT json_agg(row_to_json(relay_outer)) FROM (
-                                    SELECT ROW_NUMBER() OVER(ORDER BY stdcCoursCode, stdcRlayCode ASC) AS "courseId"
+                                    SELECT ROW_NUMBER() OVER(ORDER BY "stdcCoursCode", "stdcRlayCode" ASC) AS "courseId"
                                                   ,relay_inner.*
                                     FROM (
-                                            SELECT DISTINCT 
-                                                    --ROW_NUMBER() OVER(ORDER BY  t01.stdcCoursCode, t01.stdcRlayCode ASC) AS "courseId"
-                                                    --t01.id
-                                                    --,t01.stdcStdCode
-                                                     t01.stdcCoursCode		    
-                                                    ,t01.stdcOrgCode
-                                                    ,t01.stdcBuCode
-                                                    ,t01.stdcPurcCode
-                                                    ,t01.stdcStdVersion
-                                                    ,t01.stdcCoursDescription		 	
-                                                    ,t01.stdcRlayCode			
-                                                    ,t01.stdcRlayDescription			
-                                                    ,t01.stdcSchoCode			
-                                                    ,t01.stdcSchoDescription	
+                                            SELECT 
+                                                     t01."stdcCoursCode"		    
+                                                    ,t01."stdcOrgCode"
+                                                    ,t01."stdcBuCode"
+                                                    ,t01."stdcPurcCode"
+                                                    ,t01."stdcStdVersion"
+                                                    ,t01."stdcCoursDescription"		 	
+                                                    ,t01."stdcRlayCode"			
+                                                    ,t01."stdcRlayDescription"			
+                                                    ,t01."stdcSchoCode"			
+                                                    ,t01."stdcSchoDescription"	
                                                     ,t1.std_year as stdcYear		
-                                                    --,t01.stdcStatus
                                                     ,(SELECT json_agg(row_to_json(items_row)) FROM (
-                                                                SELECT DISTINCT 
-                                                                   ROW_NUMBER() OVER(ORDER BY  t001.itmItemCode ASC) AS "itemId",
+                                                                SELECT 
+                                                                   ROW_NUMBER() OVER(ORDER BY  t001."itmItemCode" ASC) AS "itemId",
                                                                    (SELECT row_to_json(k) FROM (
                                                                     SELECT DISTINCT
-                                                                           stdcStdCode,
-                                                                           stdcOrgCode,
-                                                                           stdcBuCode,
-                                                                           stdcPurcCode,
-                                                                           stdcCoursCode,
-                                                                           stdcRlayCode,
-                                                                           itmItemCode  AS "stdcItemCode",
-                                                                           stdcStdVersion,
-                                                                           stdcSchoCode
+                                                                           t01."stdcStdCode",
+                                                                           t01."stdcOrgCode",
+                                                                           t01."stdcBuCode",
+                                                                           t01."stdcPurcCode",
+                                                                           t01."stdcCoursCode",
+                                                                           t01."stdcRlayCode",
+                                                                           t001."itmItemCode"  AS "stdcItemCode",
+                                                                           t01."stdcStdVersion",
+                                                                           t01."stdcSchoCode"
                                                                    ) k)   AS "keyToDelete"
-                                                                   ,itmItemCode
-                                                                   ,itmItemDescription
-                                                                   ,itmItmcName
-                                                                   ,itmItmcParent
-                                                                   --,stdcSchoCode
-                                                                   ,itmPerformance
-                                                                   ,itmRenewalCicle
-                                                                   ,itmMaintenanceCicle
-                                                                   ,itmIsbn
-                                                                   ,itmAttribute01
-                                                                   ,itmValue01
-                                                                   ,itmAttribute02
-                                                                   ,itmValue02
-                                                                   ,itmAttribute03
-                                                                   ,itmValue03
-                                                                   ,itmAttribute04
-                                                                   ,itmValue04
-                                                                   ,itmAttribute05
-                                                                   ,itmValue05
-                                                                   ,itmAttribute06
-                                                                   ,itmValue06
-                                                                   ,itmAttribute07
-                                                                   ,itmValue07
-                                                                   ,itmStatus
+                                                                   ,t001."itmItemCode"
+                                                                   ,t001."itmItemDescription"
+                                                                   ,t001."itmItmcName"
+                                                                   ,t001."itmItmcParent"
+                                                                   ,t001."itmPerformance"
+                                                                   ,t001."itmRenewalCicle"
+                                                                   ,t001."itmMaintenanceCicle"
+                                                                   ,t001."itmIsbn"
+                                                                   ,t001."itmAttribute01"
+                                                                   ,t001."itmValue01"
+                                                                   ,t001."itmAttribute02"
+                                                                   ,t001."itmValue02"
+                                                                   ,t001."itmAttribute03"
+                                                                   ,t001."itmValue03"
+                                                                   ,t001."itmAttribute04"
+                                                                   ,t001."itmValue04"
+                                                                   ,t001."itmAttribute05"
+                                                                   ,t001."itmValue05"
+                                                                   ,t001."itmAttribute06"
+                                                                   ,t001."itmValue06"
+                                                                   ,t001."itmAttribute07"
+                                                                   ,t001."itmValue07"
+                                                                   ,t001."itmStatus"
                                                             FROM	tbl_items t001
                                                             WHERE 
-                                                                    t01.stdcStdCode      = t001.itmStdCode
-                                                                AND t01.stdcOrgCode  = t001.itmOrgCode
-                                                                AND t01.stdcBuCode   = t001.itmBuCode
-                                                                AND t01.stdcPurcCode = t001.itmPurcCode
-                                                                AND t01.stdcStdVersion   =  t001.itmStdVersion
-                                                                AND t01.stdcCoursCode   = t001.itmCoursCode
-                                                                AND t01.stdcRlayCode   = t001.itmRlayCode
-                                                                --AND t01.stdcItemCode   = t001.itmItemCode
+                                                                    t01."stdcStdCode"    = t001."itmStdCode"
+                                                                AND t01."stdcOrgCode"    = t001."itmOrgCode"
+                                                                AND t01."stdcBuCode"     = t001."itmBuCode"
+                                                                AND t01."stdcPurcCode"   = t001."itmPurcCode"
+                                                                AND t01."stdcStdVersion" = t001."itmStdVersion"
+                                                                AND t01."stdcCoursCode"  = t001."itmCoursCode"
+                                                                AND t01."stdcRlayCode"   = t001."itmRlayCode"
                
                                                         ) items_row
                                                        ) AS items
                                                 FROM	tbl_rlay_courses t01
                                                 WHERE 
-                                                        t1.std_code      = t01.stdcStdCode
-                                                    AND t1.std_org_code  = t01.stdcOrgCode
-                                                    AND t1.std_bu_code   = t01.stdcBuCode
-                                                    AND t1.std_purc_code = t01.stdcPurcCode
-                                                    AND t1.std_version   = t01.stdcStdVersion
-                                                    --AND T01.stdcCoursCode = 'TSO-002'
-                                                    --AND T01.stdcRlayCode = 'CENTRO-BIB'
-                                               -- ORDER BY ArtistName
-                                                --FOR JSON PATH 
-                                            --ORDER BY  t1.stdc_std_code		
+                                                        t1.std_code      = t01."stdcStdCode"
+                                                    AND t1.std_org_code  = t01."stdcOrgCode"
+                                                    AND t1.std_bu_code   = t01."stdcBuCode"
+                                                    AND t1.std_purc_code = t01."stdcPurcCode"
+                                                    AND t1.std_version   = t01."stdcStdVersion"
                             ) relay_inner
                             ) relay_outer
                             ) AS relay
