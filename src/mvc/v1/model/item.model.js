@@ -45,7 +45,7 @@ const getAllItems = async(orgCode, purcCode, famCode, subFamCode) => {
     let respuesta;
     try {
         const sqlGetAllItems = `
-            SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS id    
+            SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS "id"    
                 ,t1.item_code              AS "itemCode"
                 ,t1.item_purc_code         AS "itemPurcCode"        
                 ,t3.purc_name              AS "itemPurcName"             
@@ -70,7 +70,7 @@ const getAllItems = async(orgCode, purcCode, famCode, subFamCode) => {
                 ,t1.item_value_04          AS "itemValue04"         
                 ,t1.item_creation_date     AS "itemCreationDate"    
                 ,t1.item_status            AS "itemStatus"  
-                ,'[' || CAST( t1.item_code as varchar(max))  + '] ' || t1.item_name || ' [' || t4.itmc_name || '][' || t2.itmc_name || ']' as itemOptionLabel
+                ,'[' || CAST( t1.item_code AS TEXT) || '] ' || t1.item_name || ' [' || t4.itmc_name || '][' || t2.itmc_name || ']' as "itemOptionLabel"
             FROM tbl_items t1, 
                 tbl_item_categories t2,
                 tbl_purchase_areas t3,
@@ -112,7 +112,7 @@ const getItemById = async( itemCode, itemPurcCode) => {
         
         const sqlGetItemsByID = `
 
-            SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS id    
+            SELECT ROW_NUMBER() OVER(ORDER BY  t1.item_code ASC) AS "id"    
                 ,t1.item_code              AS "itemCode"
                 ,t1.item_purc_code         AS "itemPurcCode"        
                 ,t3.purc_name              AS "itemPurcName"             
@@ -319,7 +319,7 @@ const createItem = async ( {
                     ,item_maintenance_cycle
                     ,item_currency_code
                     ,item_unit_value
-                    ,item.item_isbn              
+                    ,item_isbn              
                     ,item_attribute_01
                     ,item_value_01
                     ,item_attribute_02
@@ -340,7 +340,7 @@ const createItem = async ( {
                     ,$6 
                     ,$7
                     ,$8
-                    ,@itemIsbn
+                    ,$9
                     ,$10
                     ,$11
                     ,$12
@@ -351,7 +351,7 @@ const createItem = async ( {
                     ,$17
                     ,NOW()
                     ,$18)
-                    SELECT SCOPE_IDENTITY() as itemCode   
+                    RETURNING item_code AS "itemCode"
         `;
 
         const result = await pool.query(sqlCreateItem, [itemPurcCode, itemDescription, itemName, itemItmcCode, itemRenewalCycle, itemMaintenanceCycle, itemCurrencyCode, itemUnitValue, itemIsbn, itemAttribute01, itemValue01, itemAttribute02, itemValue02, itemAttribute03, itemValue03, itemAttribute04, itemValue04, itemStatus]);

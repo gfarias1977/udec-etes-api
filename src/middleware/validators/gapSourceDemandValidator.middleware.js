@@ -13,40 +13,44 @@ exports.createGapSourceDemandSchemaBased = {
             errorMessage: "Email de notificación es requerido",
             options: { checkFalsy: true },
         },
-        isEmail: { errorMessage: "Por favor ingresa mail válido" },
+        isString: { errorMessage: "Email de notificación debe ser string" },
+        custom: {
+            options: (value) => {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return String(value).split(';').map(e => e.trim()).filter(e => e.length > 0).every(e => emailRegex.test(e));
+            },
+            errorMessage: "Por favor ingresa mail(s) válido(s) separados por ;",
+        },
     },
     data: {
         isArray: {
-            bail:true,
-            errorMessage: "Datos de Demanda requeridos",
-            options: {
-              min: 1,
-              errorMessage: "Debe cumplir con la Minima carga de Demanda (1)",
-            },
+            bail: true,
+            errorMessage: "Datos de Demanda requeridos (mínimo 1 registro)",
+            options: { min: 1 },
         },
     },
     "data.*.gapd_stdc_year": {
         exists: {
             errorMessage: "Año  es requerido",
-            options: { checkFalsy: true },
+            options: { checkFalsy: false },
         },
     },
     "data.*.gapd_stdc_version": {
         exists: {
             errorMessage: "Version del estandar es requerido",
-            options: { checkFalsy: true },
+            options: { checkFalsy: false },
         },
     },
     "data.*.gapd_stdc_academic_year": {
         exists: {
             errorMessage: "Año academico es requerido",
-            options: { checkFalsy: true },
+            options: { checkFalsy: false },
         },
     },
     "data.*.gapd_stdc_academic_period": {
         exists: {
             errorMessage: "Periodo Academico es requerido",
-            options: { checkFalsy: true },
+            options: { checkFalsy: false },
         },
     },
     "data.*.gapd_stdc_org_code": {
@@ -88,7 +92,7 @@ exports.createGapSourceDemandSchemaBased = {
     "data.*.gapd_stdc_students_qty": {
         exists: {
             errorMessage: "Cantidad de alumnos es requerido",
-            options: { checkFalsy: true },
+            options: { checkFalsy: false },
         },
     },
     "data.*.gapd_stdc_act_code_principal": {

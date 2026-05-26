@@ -8,11 +8,19 @@ const awaitHandlerFactory = require('../../middleware/awaitHandlerFactory.middle
 const {auth} = require('../../middleware/auth.middleware');
 const { createGapSourceStockSchemaBased} = require('../../middleware/validators/gapSourceStockValidator.middleware');
 
+// Normaliza el body si el payload completo llega anidado dentro de 'data'
+const normalizeStockBody = (req, res, next) => {
+    if (req.body?.data && !Array.isArray(req.body.data) && Array.isArray(req.body.data?.data)) {
+        req.body = req.body.data;
+    }
+    next();
+};
+
 router.get('/getAll/', auth,[
     query('gapstPurcCode',   'Codigo deL Area de Gestion es Requerido es obligatorio').not().isEmpty(),     
     query('gapstProcId',     'Id del Proceso es obligatorio').not().isEmpty(),     
     fieldsValidator],awaitHandlerFactory(GapSourceStockController.getAllGapSourceStockByParameters)); 
 
-router.post('/bulkLoad/', auth,checkSchema(createGapSourceStockSchemaBased), awaitHandlerFactory(GapSourceStockController.bulkLoadStock)); 
+router.post('/bulkLoad/', auth, normalizeStockBody, checkSchema(createGapSourceStockSchemaBased, ['body']), awaitHandlerFactory(GapSourceStockController.bulkLoadStock)); 
 
 module.exports = router;

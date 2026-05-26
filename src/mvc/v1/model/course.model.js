@@ -105,7 +105,7 @@ const getAllCoursesByOrgCodeAndSchoCode = async(orgCode, schoCode) => {
                 ,t1.cours_elearning            AS "coursElearning"
                 ,t1.cours_clinical_field       AS "coursClinicalField"
                 ,t1.cours_creation_date        AS "coursCreationDate"
-                ,'[' || t1.cours_code || '] ' || t1.cours_description as coursOptionLabel
+                ,'[' || t1.cours_code || '] ' || t1.cours_description as "coursOptionLabel"
                 ,t1.cours_status               AS "coursStatus"
             FROM tbl_courses t1
 			left join tbl_organizations t2 on t1.cours_org_code  = t2.org_code

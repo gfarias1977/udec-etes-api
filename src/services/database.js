@@ -9,7 +9,8 @@ const pool = new Pool({
   idleTimeoutMillis: 60000,
 });
 
-pool.on('connect', () => {
+pool.on('connect', (client) => {
+  client.query("SET client_encoding TO 'UTF8'");
   console.log('Conectado a PostgreSQL');
 });
 

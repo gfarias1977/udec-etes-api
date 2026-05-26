@@ -8,15 +8,15 @@ const getAllProcessLog = async(procId) => {
     let respuesta;
     try {
         const sqlGetAllProcessLog = `
-        SELECT SELECT ROW_NUMBER() OVER(ORDER BY  t1.procl_id ASC) AS id
+        SELECT ROW_NUMBER() OVER(ORDER BY  t1.procl_id ASC) AS id
             ,t1.procl_id            AS "proclId"           
             ,t1.procl_proc_id       AS "proclProcId"      
             ,t1.procl_log           AS "proclLog"          
             ,t1.procl_creation_date AS "proclCreationDate"
-        FROM t1.dbo].[tbl_process_logs  t1
-        WHERE t1.procl_proc_id = @proclProcId`;
+        FROM tbl_process_logs t1
+        WHERE t1.procl_proc_id = $1`;
 
-        const result = await pool.query(sqlGetAllProcessLog, [purclProcId]);
+        const result = await pool.query(sqlGetAllProcessLog, [procId]);
 
         respuesta = {
             type: 'ok',   
@@ -47,25 +47,28 @@ const createProcessLog = async ( {
         
         const sqlCreateProcessLog = `
         INSERT INTO tbl_process_logs
-                (procl_proc_id
+                (procl_id
+                ,procl_proc_id
                 ,procl_log
                 ,procl_creation_date
                 )
         VALUES
-                ($1
+                (nextval('tbl_process_logs_procl_id_seq')
+                ,$1
                 ,$2
                 ,NOW()
-                )`;
+                )
+        RETURNING procl_id`;
 
         const result = await pool.query(sqlCreateProcessLog, [proclProcId, proclLog]);
         
         const affectedRows = result.rowCount;
-        //const proclId = result.rows[0].procl_id;
+        const proclId = result.rows[0]?.procl_id;
 
         respuesta = {
             type: !affectedRows ? 'error' : 'ok',
             status: 200,
-            //proclId:proclId,
+            proclId,
             message: 'Registro creado',
         };
 

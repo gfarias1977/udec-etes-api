@@ -188,7 +188,7 @@ const getStandardBySearch = async(
     try {
        
         const sqlGetStandardBySearch = `
-        SELECT ROW_NUMBER() OVER(ORDER BY  t1.stdCode ASC) AS id, t1.* FROM (
+        SELECT ROW_NUMBER() OVER(ORDER BY  t1."stdCode" ASC) AS id, t1.* FROM (
             SELECT DISTINCT 
                     --ROW_NUMBER() OVER(ORDER BY  t1.std_code ASC) AS id
                   t1.std_code                  AS "stdCode"                
@@ -206,7 +206,7 @@ const getStandardBySearch = async(
                  ,t1.std_year                  AS "stdYear"
                  ,COALESCE(t1.std_available_for_purchase, 'N') AS "stdAvailableForPurchase"
                  ,t1.std_status AS "stdStatus"
-                 ,'[' || CAST(t1.std_version AS "VARCHAR")  + ']' || t1.std_name  AS "stdOptionLabel"
+                 ,'[' || CAST(t1.std_version AS VARCHAR) || ']' || t1.std_name  AS "stdOptionLabel"
             FROM tbl_standards t1
             LEFT JOIN tbl_organizations t2 ON t2.org_code = t1.std_org_code
             LEFT JOIN tbl_charge_account t3 ON t3.cacc_code = t1.std_cacc_code AND t3.cacc_org_code = t2.org_code
@@ -227,7 +227,7 @@ const getStandardBySearch = async(
                 AND t4.scho_description IS NOT NULL
                 --ORDER BY  t1.std_code 
                 ) t1
-                ORDER BY  t1.stdCode 
+                ORDER BY  t1."stdCode" 
         `;
 
         const result = await pool.query(sqlGetStandardBySearch, [stdCode, stdOrgCode, stdBuCode, stdPurcCode, stdYear, stdVersion, stdPurchase, stdUserId]);
@@ -259,28 +259,28 @@ const getStandardApplieToMajor = async( purcCode, buCode, majorCode, stdCode, st
     try {
         const sqlGetStandardApplieToMajor = `
         select
-             major_org_code         majorOrgCode
-            ,prgd_major_code        prgdMajorCode
-            ,prgd_prog_code         prgdProgCode
-            ,prgd_level             prgdLevel
-            ,cours_code             coursCode
-            ,cours_description      coursDescription
+             major_org_code         AS "majorOrgCode"
+            ,prgd_major_code        AS "prgdMajorCode"
+            ,prgd_prog_code         AS "prgdProgCode"
+            ,prgd_level             AS "prgdLevel"
+            ,cours_code             AS "coursCode"
+            ,cours_description      AS "coursDescription"
             ,case cours_duration when 'A' then 'Anual'
                             when 'M' then 'Mensual'
                             when 'O' then 'Otros'
                             when 'S' then 'Semestral'
                             when 'T' then 'Trimestral'
                                     else 'N/E'
-             end                     coursDuration
-            ,stdc_item_code          stdcItemCode
-            ,item_description        itemDescription
-            ,stdc_performance        stdcPerformance
-            ,item_unit_value         itemUnitValue
-            ,stdc_maintenance_cicle  stdcMaintenanceCicle
-            ,stdc_renewal_cicle      stdcRenewalCicle     
-            ,stdc_rlay_code          stdcRlayCode
-            ,rlay_rlat_code          stdcRlatCode
-            ,rlay_description        rlayDescription
+             end                     AS "coursDuration"
+            ,stdc_item_code          AS "stdcItemCode"
+            ,item_description        AS "itemDescription"
+            ,stdc_performance        AS "stdcPerformance"
+            ,item_unit_value         AS "itemUnitValue"
+            ,stdc_maintenance_cicle  AS "stdcMaintenanceCicle"
+            ,stdc_renewal_cicle      AS "stdcRenewalCicle"
+            ,stdc_rlay_code          AS "stdcRlayCode"
+            ,rlay_rlat_code          AS "stdcRlatCode"
+            ,rlay_description        AS "rlayDescription"
         from
                 tbl_programs_grids
             join tbl_majors on
@@ -300,7 +300,7 @@ const getStandardApplieToMajor = async( purcCode, buCode, majorCode, stdCode, st
             left join tbl_rooms_layout on
                        rlay_code = stdc_rlay_code
         where
-                prgd_major_code = @MajorCode
+                prgd_major_code = $3
             and prgd_level > 0
             and stdc_status = 'S';
         `;
@@ -331,25 +331,25 @@ const getStandardApplieToRoomLayout = async( purcCode, buCode, rlayCode, stdCode
     let respuesta;
     try {
         const sqlGetStandardApplieToRoomLayout = `
-         SELECT rlay_code rlayCode,
-                rlay_description rlayDescription,
-                item_code itemCode,
-                item_description itemDescription,
-                cours_code coursCode,
-                cours_description coursDescription,
+         SELECT rlay_code AS "rlayCode",
+                rlay_description AS "rlayDescription",
+                item_code AS "itemCode",
+                item_description AS "itemDescription",
+                cours_code AS "coursCode",
+                cours_description AS "coursDescription",
                 CASE cours_duration WHEN 'A' THEN 'Anual'
                                 WHEN 'M' THEN 'Mensual'
                                 WHEN 'O' THEN 'Otros'
                                 WHEN 'S' THEN 'Semestral'
                                 WHEN 'T' THEN 'Trimestral'
                                         ELSE 'N/E'
-                END coursDuration,
-                stdc_performance stdcPerformance,
-                coalesce (stdc_performance, 0, 0, ROUND (rlay_capacity / stdc_performance, 0)) quantity,
-                item_unit_value itemUnitValue,
-                item_unit_value * coalesce (stdc_performance, 0, 0, ROUND (100 / stdc_performance, 1)) investment,
-                stdc_maintenance_cicle stdcMaintenance,
-                stdc_renewal_cicle stdcRenewalCicle
+                END AS "coursDuration",
+                stdc_performance AS "stdcPerformance",
+                coalesce (stdc_performance, 0, 0, ROUND (rlay_capacity / stdc_performance, 0)) AS "quantity",
+                item_unit_value AS "itemUnitValue",
+                item_unit_value * coalesce (stdc_performance, 0, 0, ROUND (100 / stdc_performance, 1)) AS "investment",
+                stdc_maintenance_cicle AS "stdcMaintenance",
+                stdc_renewal_cicle AS "stdcRenewalCicle"
         FROM tbl_standards_courses t1
                 JOIN tbl_rooms_layout t2
                 ON rlay_code = stdc_rlay_code
@@ -394,39 +394,39 @@ const getStandardEquipmentByMajor = async( majorCode, progCode, purcCode ) => {
         const sqlGetStandardEquipmentByMajor = `
         SELECT
             grid.*,
-            stdc_purc_code stdcPurcCode,
-            stdc_item_code stdcItemCode,
-            item_description stdcItemDescription,
-            coalesce(stdc_performance, 0) stdcPerformance,
-            100 stdcStudents,
+            stdc_purc_code AS "stdcPurcCode",
+            stdc_item_code AS "stdcItemCode",
+            item_description AS "stdcItemDescription",
+            coalesce(stdc_performance, 0) AS "stdcPerformance",
+            100 AS "stdcStudents",
             CASE
             WHEN (stdc_performance = 0) OR (stdc_performance IS NULL) THEN 0
             WHEN rlay_capacity > 0 THEN ROUND( rlay_capacity / stdc_performance, 0 )
             ELSE
                 --ROUND( PNALUMNOS / STA_RENDIMIENTO, 1 )
                 ROUND( 100 / stdc_performance, 0 )
-            END quantity,
-            item_unit_value stdcItemUnitValue,
+            END AS "quantity",
+            item_unit_value AS "stdcItemUnitValue",
             CASE
             WHEN stdc_performance = 0 THEN 0
             WHEN rlay_capacity > 0 THEN item_unit_value * ROUND( rlay_capacity / stdc_performance, 0 )
             ELSE
                 item_unit_value * ROUND( 100 / stdc_performance, 0 )
-            END stdcInvestment,
-            stdc_maintenance_cicle stdcMaintenanceCicle,
-            stdc_renewal_cicle stdcRenewalCicle,
-            stdc_rlay_code stdRlayCode,
-            coalesce(rlay_capacity, 0) rlayCapacity,
-            rlay_description stdcRlayDescription   
+            END AS "stdcInvestment",
+            stdc_maintenance_cicle AS "stdcMaintenanceCicle",
+            stdc_renewal_cicle AS "stdcRenewalCicle",
+            stdc_rlay_code AS "stdRlayCode",
+            coalesce(rlay_capacity, 0) AS "rlayCapacity",
+            rlay_description AS "stdcRlayDescription"   
         FROM (
             SELECT
-            t02.major_org_code    majorOrgCode,
-            t01.prgd_major_code   majorCode,
-            t01.prgd_prog_code    prgdCode,
-            t01.prgd_level        prgdLevel,
-            t03.cours_code        coursCode,
-            t03.cours_description courseDescription,
-            t03.cours_duration    coursDuration
+            t02.major_org_code    AS "majorOrgCode",
+            t01.prgd_major_code   AS "majorCode",
+            t01.prgd_prog_code    AS "prgdCode",
+            t01.prgd_level        AS "prgdLevel",
+            t03.cours_code        AS "coursCode",
+            t03.cours_description AS "courseDescription",
+            t03.cours_duration    AS "coursDuration"
             FROM
                     tbl_programs_grids t01
             JOIN tbl_majors t02 ON
@@ -442,8 +442,8 @@ const getStandardEquipmentByMajor = async( majorCode, progCode, purcCode ) => {
             --LEFT
             JOIN tbl_standards_courses t01 ON
                 t01.stdc_purc_code LIKE $3
-            AND t01.stdc_org_code = grid.majorOrgCode
-            AND t01.stdc_cours_code = grid.coursCode
+            AND t01.stdc_org_code = grid."majorOrgCode"
+            AND t01.stdc_cours_code = grid."coursCode"
             AND t01.stdc_status = 'S'
             LEFT JOIN tbl_items t02 ON
                 t02.item_purc_code = t01.stdc_purc_code
@@ -453,9 +453,9 @@ const getStandardEquipmentByMajor = async( majorCode, progCode, purcCode ) => {
         ORDER BY
             stdc_org_code,
             stdc_cours_code,
-            grid.prgdCode,
-            grid.prgdLevel,
-            grid.coursCode;
+            grid."prgdCode",
+            grid."prgdLevel",
+            grid."coursCode";
         `;
 
         const result = await pool.query(sqlGetStandardEquipmentByMajor, [majorCode, progCode, purcCode]);

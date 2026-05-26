@@ -82,9 +82,8 @@ const getAllGapSourceStockByParameters= async( req, res, next ) => {
 };
 
 const bulkLoadStock = async (req, res, next) => {
-    checkValidation(req);
-
     try {
+        checkValidation(req);
         
         const result = await GapSourceStockModel.bulkLoadStock(req.body);
 

@@ -14,8 +14,8 @@ const getAllGapsSchedulledParamByParam= async(gapscdId, gapsctId ) => {
             ,t1.gapscp_value		  AS "gapscpValue"		
             ,t1.gapscp_code		      AS "gapscpCode"		
         FROM tbl_gaps_scheduled_params t1
-        WHERE t1.gapscp_gapscd_id	= COALESCE(@gapscpGapscdId, t1.gapscp_gapscd_id)
-        AND t1.gapscp_gapsct_id     = COALESCE(gapscpGapsctId,  t1.gapscp_gapsct_id)
+        WHERE t1.gapscp_gapscd_id	= COALESCE($1, t1.gapscp_gapscd_id)
+        AND t1.gapscp_gapsct_id     = COALESCE($2,  t1.gapscp_gapsct_id)
         `;
 
         const result = await pool.query(sqlGetAllGapsSchedulledParam, [gapscdId, gapsctId]);

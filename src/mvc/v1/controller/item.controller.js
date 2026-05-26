@@ -10,8 +10,8 @@ const ItemModel = require('../model/item.model');
 const getAllItems = async( req, res, next ) => {
 
     try {
-        const {orgCode, purcCode, famCode, subFamCode , filterOptions, searchTerm} = req.query;
-        const items = await ItemModel.getAllItems(orgCode, purcCode, famCode, subFamCode);
+        const {orgCode, purcCode, famCode, subFamCode , filterOptions, searchTerm, filterSelectOrgCode, filterSelectPurcCode} = req.query;
+        const items = await ItemModel.getAllItems(filterSelectOrgCode, filterSelectPurcCode, famCode, subFamCode);
 
         if(items.type === 'ok'){
             const filterLength = filterOptions?.length || 0;

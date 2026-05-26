@@ -214,7 +214,7 @@ const getAllItemCategoriesByParentCode = async(itmcPurcCode, itmcParentCode) => 
             LEFT JOIN tbl_purchase_areas t2 ON t2.purc_code = t1.itmc_purc_code
             WHERE t1.itmc_status = 'S'
               and t1.itmc_purc_code   = $1
-              and t1.itmc_parent_code = @itmcParentCode
+              and t1.itmc_parent_code = $2
             order by t1.itmc_name asc
         `;
 
@@ -264,7 +264,7 @@ const createItemCategory = async ( {
             VALUES
                     ($1
                     ,$2
-                    ,@itmcdescription
+                    ,$3
                     ,$4
                     ,$5
                     ,NOW()

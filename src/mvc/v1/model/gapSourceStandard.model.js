@@ -3,6 +3,7 @@ const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 const ProcessModel = require('./process.model');
 const ProcessLogModel = require('./processLog.model');
+const HttpException = require('../../../utils/HttpException.utils');
 
 
 const getAllGapSourceStandardByParameters = async (
@@ -99,24 +100,23 @@ const getAll = async () => {
     let respuesta;
     try {
         const sqlGetAllGapSourceStandard = `
-        SELECT [gaps_stdc_bu_code]
-            ,[gaps_stdc_org_code]
-            ,[gaps_stdc_std_code]
-            ,[gaps_stdc_std_version]
-            ,[gaps_stdc_cours_code]
-            ,[gaps_stdc_rlay_code]
-            ,[gaps_stdc_purc_code]
-            ,[gaps_stdc_item_code]
-            ,coalesce([gaps_stdc_performance], 0) as [gaps_stdc_performance]
-            ,coalesce([gaps_stdc_renewal_cicle], 0) as [gaps_stdc_renewal_cicle]
-            ,coalesce([gaps_stdc_maintenance_cicle], 0) as [gaps_stdc_maintenance_cicle]
-            ,coalesce([gaps_stdc_observations], '') as [gaps_stdc_observations]
-            ,coalesce([gaps_stdc_detail], '') as [gaps_stdc_detail]
-            ,coalesce([gaps_stdc_status], '') as [gaps_stdc_status]
+        SELECT gaps_stdc_bu_code
+            ,gaps_stdc_org_code
+            ,gaps_stdc_std_code
+            ,gaps_stdc_std_version
+            ,gaps_stdc_cours_code
+            ,gaps_stdc_rlay_code
+            ,gaps_stdc_purc_code
+            ,gaps_stdc_item_code
+            ,COALESCE(gaps_stdc_performance, 0) AS gaps_stdc_performance
+            ,COALESCE(gaps_stdc_renewal_cicle, 0) AS gaps_stdc_renewal_cicle
+            ,COALESCE(gaps_stdc_maintenance_cicle, 0) AS gaps_stdc_maintenance_cicle
+            ,COALESCE(gaps_stdc_observations, '') AS gaps_stdc_observations
+            ,COALESCE(gaps_stdc_detail, '') AS gaps_stdc_detail
+            ,COALESCE(gaps_stdc_status, '') AS gaps_stdc_status
         FROM tbl_gaps_source_standard
         WHERE gaps_stdc_item_code IS NOT NULL
         AND gaps_stdc_status = 'S'
-      
         `;
 
         const result = await pool.query(sqlGetAllGapSourceStandard);
@@ -200,13 +200,14 @@ const bulkLoadStandard = async ({
         // Bulk Insert de Standard usando unnest
         const sqlBulkInsert = `
             INSERT INTO tbl_gaps_source_standard (
+                gaps_id,
                 gaps_proc_id, gaps_proc_code,
                 gaps_stdc_bu_code, gaps_stdc_org_code, gaps_stdc_std_code, gaps_stdc_std_version,
                 gaps_stdc_cours_code, gaps_stdc_rlay_code, gaps_stdc_purc_code, gaps_stdc_item_code,
                 gaps_stdc_performance, gaps_stdc_renewal_cicle, gaps_stdc_maintenance_cicle,
                 gaps_stdc_observations, gaps_stdc_detail, gaps_stdc_status
             )
-            SELECT * FROM unnest(
+            SELECT nextval('tbl_gaps_source_standard_gaps_id_seq'), * FROM unnest(
                 $1::bigint[], $2::text[],
                 $3::text[], $4::text[], $5::text[], $6::int[],
                 $7::text[], $8::text[], $9::text[], $10::bigint[],
@@ -236,7 +237,6 @@ const bulkLoadStandard = async ({
         const result = await client.query(sqlBulkInsert, Object.values(cols));
 
         await client.query('COMMIT');
-        console.log(result);
         respuesta = {
             type: 'ok',
             status: 200,

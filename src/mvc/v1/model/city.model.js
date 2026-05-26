@@ -78,13 +78,13 @@ const getAllCitiesBibliographicCenter = async(orgCode) => {
 
     try {
         const sqlGetAllCities = `
-            SELECT DISTINCT [cabi_city_code] cityCode
+            SELECT DISTINCT cabi_city_code AS "cityCode"
             FROM tbl_campus_bibligraphic_center
-            JOIN tbl_campus ON [camp_code] = [cabi_camp_code]
+            JOIN tbl_campus ON camp_code = cabi_camp_code
             WHERE
-                [camp_org_code] = coalesce($1,'')
-            AND [cabi_status] = 'S'
-            ORDER BY [cabi_city_code] ASC;
+                camp_org_code = coalesce($1,'')
+            AND cabi_status = 'S'
+            ORDER BY cabi_city_code ASC;
         `;
 
         const result = await pool.query(sqlGetAllCities, [orgCode]);

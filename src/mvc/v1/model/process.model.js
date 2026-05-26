@@ -60,13 +60,9 @@ const getAllProcessByPurcCode= async(proctId, purcCode) => {
               ,t1.proc_demand_proc_id		 AS "procDemandId"
               ,t1.proc_standard_proc_id  	 AS "procStandardId"
               ,t4.proc_code		             AS "procStock"
-              ,t4.proc_msg		             AS "procStockMsg"
               ,t5.proc_code		             AS "procDemand"
-              ,t5.proc_msg		             AS "procDemandMsg"
               ,t6.proc_code  	             AS "procStandard" 
-              ,t6.proc_msg  	             AS "procStandardMsg"              
               ,t1.proc_status				 AS "procStatus"
-              ,t1.proc_msg   				 AS "procMsg"
           FROM tbl_process t1
           LEFT JOIN tbl_purchase_areas    t2 on t1.proc_purc_code = t2.purc_code
           LEFT JOIN tbl_process_types         t3 on t1.proc_proct_id = t3.proct_id and  t3.proct_purc_code = t1.proc_purc_code
@@ -119,7 +115,8 @@ const createProcess = async ( {
         
         const sqlCreateProcess= `
         INSERT INTO tbl_process
-                (proc_purc_code
+                (proc_id
+                ,proc_purc_code
                 ,proc_proct_id
                 ,proc_scheduled_date
                 ,proc_email_notification
@@ -130,10 +127,10 @@ const createProcess = async ( {
                 ,proc_stock_proc_id		
                 ,proc_demand_proc_id		 
                 ,proc_standard_proc_id  
-                ,proc_msg	
                 ,proc_status)
         VALUES
-                ($1
+                (nextval('tbl_process_proc_id_seq')
+                ,$1
                 ,$2
                 ,$3
                 ,$4
@@ -144,12 +141,11 @@ const createProcess = async ( {
                 ,$8
                 ,$9
                 ,$10
-                ,$11
-                ,$12)
-                SELECT SCOPE_IDENTITY() as proc_id
+                ,$11)
+                RETURNING proc_id
         `;
 
-        const result = await pool.query(sqlCreateProcess, [procPurcCode, procProctId, procScheduledDate, procEmailNotification, procCode, procFile, procFileUploaded, procStock, procDemand, procStandard, procMsg, procStatus]);
+        const result = await pool.query(sqlCreateProcess, [procPurcCode, procProctId, procScheduledDate, procEmailNotification, procCode, procFile, procFileUploaded, procStock, procDemand, procStandard, procStatus]);
         
         const affectedRows = result.rowCount;
         const procId = result.rows[0].proc_id;

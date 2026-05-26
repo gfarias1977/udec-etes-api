@@ -27,9 +27,10 @@ app.use(bodyParser.urlencoded({
     limit: "50mb",
     extended: false
   }));
-app.use(bodyParser.json({limit: "50mb"}));
 
-app.use(express.json({ reviver: reviveJson }));
+app.use(bodyParser.json({ limit: "50mb", reviver: reviveJson }));
+
+//app.use(express.json({ reviver: reviveJson }));
 
 // Documentación swagger de la API
 // app.use('/api/v1/api-docs', routes.swaggerDocV1);

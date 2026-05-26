@@ -58,7 +58,7 @@ const getAllGapSourceDemandByParameters = async (
                 t1.gapd_proc_id              = $1
             and t1.gapd_proc_code            = COALESCE($2             , t1.gapd_proc_code)
             and t1.gapd_stdc_academic_year	 = COALESCE($3     , t1.gapd_stdc_academic_year)		
-            and t1.gapd_stdc_academic_period = COALESCE($4   , t1.gapd_stdc_academic_period)		 
+            and t1.gapd_stdc_academic_period = COALESCE($4    , t1.gapd_stdc_academic_period)		 
             and t1.gapd_stdc_org_code        = COALESCE($5              , t1.gapd_stdc_org_code)
             and t1.gapd_stdc_camp_code       = COALESCE($6             , t1.gapd_stdc_camp_code)
             and t1.gapd_stdc_scho_code       = COALESCE($7             , t1.gapd_stdc_scho_code)
@@ -138,13 +138,14 @@ const bulkLoadDemand = async ({
         // Bulk Insert de Demand usando unnest
         const sqlBulkInsert = `
             INSERT INTO tbl_gaps_source_demand (
+                gapd_id,
                 gapd_proc_id, gapd_proc_code,
                 gapd_stdc_year, gapd_stdc_version, gapd_stdc_academic_year, gapd_stdc_academic_period,
                 gapd_stdc_org_code, gapd_stdc_camp_code, gapd_stdc_scho_code, gapd_stdc_cours_code,
                 gapd_stdc_wkt_code, gapd_stdc_act_code, gapd_stdc_students_qty,
                 gapd_stdc_act_code_principal, gapd_stdc_course_type, gapd_stdc_city
             )
-            SELECT * FROM unnest(
+            SELECT nextval('tbl_gaps_source_demand_gapd_id_seq'), * FROM unnest(
                 $1::bigint[], $2::text[],
                 $3::bigint[], $4::bigint[], $5::bigint[], $6::bigint[],
                 $7::text[], $8::text[], $9::text[], $10::text[],
@@ -173,7 +174,6 @@ const bulkLoadDemand = async ({
         const result = await client.query(sqlBulkInsert, Object.values(cols));
 
         await client.query('COMMIT');
-        console.log(result);
         respuesta = {
             type: 'ok',
             status: 200,
@@ -240,9 +240,9 @@ const getAllDemandPeriods = async() => {
     try {
         const sqlDemandPeriods = `
             SELECT DISTINCT 
-                [gapd_stdc_academic_year]           AS "gapdStdcAcademicYear"
-                ,[gapd_stdc_academic_period]        AS "gapdStdcAcademicPeriod"
-                ,CONCAT([gapd_stdc_academic_year] , '-' , [gapd_stdc_academic_period]) AS "gapdStdcDemandPeriod"
+                gapd_stdc_academic_year           AS "gapdStdcAcademicYear"
+                ,gapd_stdc_academic_period        AS "gapdStdcAcademicPeriod"
+                ,gapd_stdc_academic_year || '-' || gapd_stdc_academic_period AS "gapdStdcDemandPeriod"
             FROM tbl_gaps_source_demand
         `;
 

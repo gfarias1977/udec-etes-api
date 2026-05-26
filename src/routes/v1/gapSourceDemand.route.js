@@ -8,12 +8,19 @@ const awaitHandlerFactory = require('../../middleware/awaitHandlerFactory.middle
 const {auth} = require('../../middleware/auth.middleware');
 const { createGapSourceDemandSchemaBased} = require('../../middleware/validators/gapSourceDemandValidator.middleware');
 
+const normalizeDemandBody = (req, res, next) => {
+    if (req.body?.data && !Array.isArray(req.body.data) && Array.isArray(req.body.data?.data)) {
+        req.body = req.body.data;
+    }
+    next();
+};
+
 router.get('/getAll/', auth,[
     fieldsValidator],awaitHandlerFactory(GapSourceDemandController.getAllGapSourceDemandByParameters)); 
 
     router.get('/getAllDemandPeriods/', auth,[
         fieldsValidator],awaitHandlerFactory(GapSourceDemandController.getAllDemandPeriods)); 
 
-router.post('/bulkLoad/', auth, checkSchema(createGapSourceDemandSchemaBased), awaitHandlerFactory(GapSourceDemandController.bulkLoadDemand)); 
+router.post('/bulkLoad/', auth, normalizeDemandBody, checkSchema(createGapSourceDemandSchemaBased, ['body']), awaitHandlerFactory(GapSourceDemandController.bulkLoadDemand)); 
 
 module.exports = router;

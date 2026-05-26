@@ -13,15 +13,21 @@ exports.createGapSourceStockSchemaBased = {
             errorMessage: "Email de notificación es requerido",
             options: { checkFalsy: true },
         },
-        isEmail: { errorMessage: "Por favor ingresa mail válido" },
+        isString: { errorMessage: "Email de notificación debe ser string" },
+        custom: {
+            options: (value) => {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return String(value).split(';').map(e => e.trim()).filter(e => e.length > 0).every(e => emailRegex.test(e));
+            },
+            errorMessage: "Por favor ingresa mail(s) válido(s) separados por ;",
+        },
     },
     data: {
         isArray: {
-            bail:true,
-            errorMessage: "Datos de Demanda requeridos",
+            bail: true,
+            errorMessage: "Datos de Stock requeridos (mínimo 1 registro)",
             options: {
               min: 1,
-              errorMessage: "Debe cumplir con la Minima carga de Stock (1)",
             },
         },
     },    

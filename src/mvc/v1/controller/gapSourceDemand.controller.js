@@ -80,9 +80,8 @@ const getAllGapSourceDemandByParameters= async( req, res, next ) => {
 };
 
 const bulkLoadDemand = async (req, res, next) => {
-    checkValidation(req);
-
     try {
+        checkValidation(req);
         
         const result = await GapSourceDemandModel.bulkLoadDemand(req.body);
 

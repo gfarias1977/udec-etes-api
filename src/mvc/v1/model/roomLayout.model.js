@@ -186,7 +186,7 @@ const getAllRoomLayoutsByParameters = async(purcCode, buCode,stdCode, orgCode) =
 
     const qryFindRoomLayouts = 
     `
-    SELECT ROW_NUMBER() OVER(ORDER BY  t1.rlayCode ASC) AS id, t1.* FROM (
+    SELECT ROW_NUMBER() OVER(ORDER BY  t1."rlayCode" ASC) AS id, t1.* FROM (
 		SELECT DISTINCT  
              t1.rlay_code            AS "rlayCode"           
             ,t1.rlay_rlat_code       AS "rlayRlatCode"     
@@ -202,12 +202,12 @@ const getAllRoomLayoutsByParameters = async(purcCode, buCode,stdCode, orgCode) =
             tbl_standards_courses t2
         WHERE 
                 t1.rlay_code = t2.stdc_rlay_code
-            AND t2.stdc_bu_code   = coalesce(@buCode,t2.stdc_bu_code )
-            AND t2.stdc_purc_code = coalesce(@purcCode,t2.stdc_purc_code)
-            AND t2.stdc_org_code  = coalesce(@orgCode,t2.stdc_org_code)
-            AND t2.stdc_std_code  = coalesce(@stdCode,t2.stdc_std_code)            
+            AND t2.stdc_bu_code   = coalesce($1,t2.stdc_bu_code )
+            AND t2.stdc_purc_code = coalesce($4,t2.stdc_purc_code)
+            AND t2.stdc_org_code  = coalesce($2,t2.stdc_org_code)
+            AND t2.stdc_std_code  = coalesce($3,t2.stdc_std_code)            
             AND t2.stdc_status = 'S') t1
-        ORDER BY t1.rlayRlatCode desc, t1.rlayDescription
+        ORDER BY t1."rlayRlatCode" desc, t1."rlayDescription"
 
     `;
     

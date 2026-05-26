@@ -48,7 +48,7 @@ const getAllGapSourceStockByParameters = async (
           LEFT JOIN tbl_organizations t3 ON t3.org_code  = t1.gapst_org_code
           LEFT JOIN tbl_campus        t4 ON t4.camp_code = t1.gapst_camp_code and t4.camp_org_code = t1.gapst_org_code
           LEFT JOIN tbl_cities        t5 ON t5.city_code = t1.gapst_city 
-          LEFT JOIN tbl_items         t6 ON t6.item_code = t1.gapst_item_code and t6.[item_purc_code] = $1
+          LEFT JOIN tbl_items         t6 ON t6.item_code = t1.gapst_item_code and t6.item_purc_code = $1
         
           WHERE 
               t1.gapst_proc_id      = $2
@@ -134,11 +134,12 @@ const bulkLoadStock = async ({
         // Bulk Insert de stock usando unnest
         const sqlBulkInsert = `
             INSERT INTO tbl_gaps_source_stock (
+                gapst_id,
                 gapst_proc_id, gapst_proc_code, gapst_org_code, gapst_camp_code,
                 gapst_camp_library, gapst_camp_sub_library, gapst_city, gapst_item_code,
                 gapst_library_id, gapst_item_id, gapst_format, gapst_format_type, gapst_volumen
             )
-            SELECT * FROM unnest(
+            SELECT nextval('tbl_gaps_source_stock_gapst_id_seq'), * FROM unnest(
                 $1::bigint[], $2::text[], $3::text[], $4::text[],
                 $5::text[], $6::text[], $7::text[], $8::bigint[],
                 $9::text[], $10::text[], $11::text[], $12::text[], $13::text[]
