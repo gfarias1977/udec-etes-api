@@ -401,17 +401,17 @@ const getStandardEquipmentByMajor = async( majorCode, progCode, purcCode ) => {
             100 AS "stdcStudents",
             CASE
             WHEN (stdc_performance = 0) OR (stdc_performance IS NULL) THEN 0
-            WHEN rlay_capacity > 0 THEN ROUND( rlay_capacity / stdc_performance, 0 )
+            WHEN rlay_capacity > 0 THEN ROUND( (rlay_capacity / stdc_performance)::numeric, 0 )
             ELSE
                 --ROUND( PNALUMNOS / STA_RENDIMIENTO, 1 )
-                ROUND( 100 / stdc_performance, 0 )
+                ROUND( (100 / stdc_performance)::numeric, 0 )
             END AS "quantity",
             item_unit_value AS "stdcItemUnitValue",
             CASE
             WHEN stdc_performance = 0 THEN 0
-            WHEN rlay_capacity > 0 THEN item_unit_value * ROUND( rlay_capacity / stdc_performance, 0 )
+            WHEN rlay_capacity > 0 THEN item_unit_value * ROUND( (rlay_capacity / stdc_performance)::numeric, 0 )
             ELSE
-                item_unit_value * ROUND( 100 / stdc_performance, 0 )
+                item_unit_value * ROUND( (100 / stdc_performance)::numeric, 0 )
             END AS "stdcInvestment",
             stdc_maintenance_cicle AS "stdcMaintenanceCicle",
             stdc_renewal_cicle AS "stdcRenewalCicle",
@@ -512,29 +512,29 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
                 SELECT DISTINCT RES2.*,
                     CASE
                         WHEN DEMANDA = 0 THEN STOCK
-                        ELSE FORMAT(ROUND((STOCK * 100) / DEMANDA,0),'#########')
+                        ELSE ROUND(((STOCK * 100) / DEMANDA)::numeric, 0)
                     END CUMPLIM_REND,
                     CASE
-                        WHEN DEMANDA > 0 AND ROUND((STOCK * 100) / DEMANDA,0) > 100 THEN '100%'
+                        WHEN DEMANDA > 0 AND ROUND(((STOCK * 100) / DEMANDA)::numeric,0) > 100 THEN '100%'
                         WHEN STOCK_IL > 0 THEN '100%'
-                        WHEN DEMANDA > 0 THEN CONCAT(CAST(FORMAT(ROUND((STOCK * 100) / DEMANDA,0),'#########') as varchar(30)),'%')
-                        WHEN NRO_ALUMNOS = 0 AND STOCK > 0 THEN '100%' 
+                        WHEN DEMANDA > 0 THEN CONCAT(ROUND(((STOCK * 100) / DEMANDA)::numeric, 0)::varchar, '%')
+                        WHEN NRO_ALUMNOS = 0 AND STOCK > 0 THEN '100%'
                         ELSE '0%'
                     END CUMPLIM_REND_AJUSTADO,
-                    $4 CIUDAD
+                    $3 CIUDAD
                 FROM(
                     SELECT
                         RES.*,
                         CASE
                             WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS = 1 THEN 1
-                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST = 'UNV' THEN FORMAT(ROUND(get_round_minus05(NRO_ALUMNOS/10),0),'#########')
-                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST <> 'UNV' THEN FORMAT(ROUND(get_round_minus05(NRO_ALUMNOS/20),0), '#########')
+                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST = 'UNV' THEN ROUND(get_round_minus05(NRO_ALUMNOS/10)::numeric, 0)
+                            WHEN STA_CBI_CODIGO IS NULL AND NRO_ALUMNOS > 0 AND INST <> 'UNV' THEN ROUND(get_round_minus05(NRO_ALUMNOS/20)::numeric, 0)
                             WHEN STOCK_IL > 0 AND NRO_ALUMNOS > 0 THEN NRO_ALUMNOS
                             WHEN (STA_RENDIMIENTO = 0) OR (STA_RENDIMIENTO IS NULL) THEN 0
-                            WHEN NRO_ALUMNOS = 0 AND STOCK > 0 THEN 0 
+                            WHEN NRO_ALUMNOS = 0 AND STOCK > 0 THEN 0
                             WHEN NRO_ALUMNOS = 0 THEN STOCK
                             ELSE
-                            FORMAT(ROUND(get_round_minus05(NRO_ALUMNOS / STA_RENDIMIENTO),0),'#########')
+                            ROUND(get_round_minus05(NRO_ALUMNOS / STA_RENDIMIENTO)::numeric, 0)
                         END DEMANDA,
                         CASE
                             WHEN STOCK > 0 THEN '100%'
@@ -555,33 +555,33 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
                             gaps_stdc_purc_code STA_ACO_CODIGO,
                             gaps_stdc_item_code STA_CBI_CODIGO,
                             item_description    CBI_DESCRIPCION,
-                            FORMAT(ROUND(COALESCE(gaps_stdc_performance, 0),0),'########') STA_RENDIMIENTO,
-                            get_max_students_dda($6, $4, ASIG_ID) NRO_ALUMNOS,
-                            get_stock_ciudad($7, gaps_stdc_item_code, $4, '%') STOCK,
-                            get_stock_ciudad($7, gaps_stdc_item_code, $4, 'IL') STOCK_IL
+                            ROUND(COALESCE(gaps_stdc_performance, 0)::numeric, 0) STA_RENDIMIENTO,
+                            get_max_students_dda($5, $3, ASIG_ID) NRO_ALUMNOS,
+                            get_stock_ciudad($6, gaps_stdc_item_code, $3, '%') STOCK,
+                            get_stock_ciudad($6, gaps_stdc_item_code, $3, 'IL') STOCK_IL
                         FROM (
-                            SELECT 
-                                major_org_code    AS "INST"
+                            SELECT
+                                major_org_code    AS INST
                                 ,prgd_major_code   AS CARR_ID
                                 ,prgd_prog_code    AS PLAN_ID
-                                ,prgd_level        AS "NIVEL"
+                                ,prgd_level        AS NIVEL
                                 ,cours_code        AS ASIG_ID
-                                ,cours_description AS "ASIGNATURA"
-                                ,cours_duration    AS "DURACION"
+                                ,cours_description AS ASIGNATURA
+                                ,cours_duration    AS DURACION
                             FROM tbl_programs_grids
-                            JOIN tbl_majors ON 
+                            JOIN tbl_majors ON
                                 major_code = prgd_major_code
-                            LEFT JOIN tbl_courses ON 
-                                cours_org_code = major_org_code 
+                            LEFT JOIN tbl_courses ON
+                                cours_org_code = major_org_code
                             AND cours_code = prgd_cours_code
-                            WHERE prgd_major_code = coalesce($2,prgd_major_code) --'509' 
-                                AND prgd_prog_code = coalesce($3,prgd_prog_code)  --'10'
+                            WHERE prgd_major_code = coalesce($1,prgd_major_code)
+                                AND prgd_prog_code = coalesce($2,prgd_prog_code)
                                 AND prgd_level > 0
                             ) MALLA
                             -- AQUI VA EL ESTANDAR HISTORIAL
                             LEFT JOIN tbl_gaps_source_standard ON
-                                gaps_proc_id  = $5 --147 PKG_BRECHA_BIB.GET_DEFAULT_FUENTES_ID('STD')
-                            AND gaps_stdc_purc_code = 'BIB' --?iAREA
+                                gaps_proc_id  = $4
+                            AND gaps_stdc_purc_code = 'BIB'
                             AND gaps_stdc_org_code = MALLA.INST
                             AND gaps_stdc_cours_code = MALLA.ASIG_ID
                             --
@@ -597,7 +597,7 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
       
         `;
 
-        const result = await pool.query(sqlGetBookCoverage, [orgCode, majorCode, progCode, cityCode, idStd, idDda, idStock]);
+        const result = await pool.query(sqlGetBookCoverage, [majorCode, progCode, cityCode, idStd, idDda, idStock]);
 
         respuesta = {
             type: 'ok',
