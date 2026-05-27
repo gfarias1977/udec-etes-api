@@ -117,22 +117,22 @@ const createUser = async ( {
         
         const sqlCreateUser = `
         INSERT INTO tbl_user(
-            [user_company_id],
-            [user_first_name],
-            [user_middle_name],
-            [user_last_name],
-            [user_sur_name],
-            [user_address],
-            [user_email],
-            [user_personal_email],
-            [user_telephone],
-            [user_cellphone],
-            [user_creation_date],
-            [user_name],
-            [user_gender],
-            [user_password],
-            [user_taxpayer_id],
-            [user_status]
+            user_company_id,
+            user_first_name,
+            user_middle_name,
+            user_last_name,
+            user_sur_name,
+            user_address,
+            user_email,
+            user_personal_email,
+            user_telephone,
+            user_cellphone,
+            user_creation_date,
+            user_name,
+            user_gender,
+            user_password,
+            user_taxpayer_id,
+            user_status
         )VALUES(
             $1,
             $2,

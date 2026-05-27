@@ -1,0 +1,47 @@
+create or replace procedure p041_upd_campos_brecha_compra(IN p_proceso bigint, IN p_tipostk bigint, IN p_crea_log boolean)
+    language plpgsql
+as
+$$
+DECLARE
+    v_message VARCHAR(500);
+BEGIN
+    IF p_crea_log THEN
+        v_message := CONCAT('COMPRA-STOCK-CERO: RUN [',
+                            public.fncgetdate()::TEXT,
+                            '] Actualización campos de la clase Brecha compra.');
+        CALL public.add_process_log(p_proceso, v_message);
+    END IF;
+
+    UPDATE public.tbl_gaps_purchase SET
+        gapp_description = (
+            SELECT SUBSTRING(
+                       'T:' || COALESCE(item_value_01,'') ||
+                       '. A:' || COALESCE(item_value_02,'') ||
+                       '. E:' || COALESCE(item_value_03,''),
+                       1, 255)
+            FROM public.tbl_items
+            WHERE item_code = gapp_item_code
+        ),
+        gapp_unit_value = COALESCE((
+            SELECT item_unit_value
+            FROM public.tbl_items
+            WHERE item_code = gapp_item_code
+        ), 0)
+    WHERE gapp_proc_id    = p_proceso
+      AND gapp_stock_type = p_tipostk;
+
+    RAISE NOTICE 'ACTUALIZA DESCRIPCION Y V. UNITARIO BRECHA COMPRA OK';
+
+    IF p_crea_log THEN
+        v_message := CONCAT('COMPRA-STOCK-CERO: RUN [',
+                            public.fncgetdate()::TEXT,
+                            '] Actualización campos de conciliación Brecha compra.');
+        CALL public.add_process_log(p_proceso, v_message);
+    END IF;
+
+    RAISE NOTICE 'COMPRA-STOCK-CERO: ACTUALIZA TOTAL AUTORIZADO, O. COMPRA Y RECEPCIONADO BRECHA COMPRA OK';
+END;
+$$;
+
+alter procedure p041_upd_campos_brecha_compra(bigint, bigint, boolean) owner to neondb_owner;
+

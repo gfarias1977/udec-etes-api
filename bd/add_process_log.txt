@@ -1,0 +1,20 @@
+CREATE OR REPLACE PROCEDURE public.add_process_log(
+    p_process bigint,
+    p_message character varying
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO public.tbl_process_logs (
+        procl_proc_id,
+        procl_log,
+        procl_creation_date
+    ) VALUES (
+        p_process,
+        p_message,
+        public.fncgetdate()
+    );
+END;
+$$;
+
+ALTER PROCEDURE public.add_process_log(bigint, character varying) OWNER TO neondb_owner;

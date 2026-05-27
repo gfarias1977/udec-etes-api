@@ -1,0 +1,22 @@
+CREATE OR REPLACE FUNCTION public.fnc_instituciones_sede(
+    p_campus character varying
+) RETURNS character varying
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_resultado character varying(10);
+BEGIN
+    SELECT camp_org_code INTO v_resultado
+    FROM public.tbl_campus
+    WHERE camp_code = p_campus;
+
+    IF NOT FOUND THEN
+        v_resultado := 'S/R';
+    END IF;
+
+    RETURN v_resultado;
+END;
+$$;
+
+ALTER FUNCTION public.fnc_instituciones_sede(character varying) OWNER TO neondb_owner;

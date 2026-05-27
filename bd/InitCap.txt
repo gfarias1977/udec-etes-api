@@ -1,0 +1,10 @@
+CREATE OR REPLACE FUNCTION public."InitCap"(
+    inputstring character varying
+) RETURNS character varying
+LANGUAGE sql
+IMMUTABLE STRICT
+AS $$
+    SELECT initcap(inputstring);
+$$;
+
+ALTER FUNCTION public."InitCap"(character varying) OWNER TO neondb_owner;

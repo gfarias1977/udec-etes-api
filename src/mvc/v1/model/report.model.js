@@ -12,48 +12,48 @@ const getReportStandardAppliedToMayor = async(buCode, stdCode, purcCode, stdVers
         const sqlGetStandardAppliedToMayor = `
             SELECT  
             t2.major_org_code      majorOrgCode,
-            t1.[prgd_cours_code]   prgdCourseId,
-            t1.[prgd_prog_code]    prgdCode,
-            t1.[prgd_level]        prgdLevel,
+            t1.prgd_cours_code   prgdCourseId,
+            t1.prgd_prog_code    prgdCode,
+            t1.prgd_level        prgdLevel,
             t3.cours_code          courseCode,
-            t3.[cours_description] courseDescription,
-            CASE t3.[cours_duration] WHEN 'A' THEN 'Anual'
+            t3.cours_description courseDescription,
+            CASE t3.cours_duration WHEN 'A' THEN 'Anual'
                               WHEN 'M' THEN 'Mensual'
                               WHEN 'O' THEN 'Otros'
                               WHEN 'S' THEN 'Semestral'
                               WHEN 'T' THEN 'Trimestral'
                                        ELSE 'N/E'
             END courseDuration,
-             t5.[item_code] itemCode,
-            t5.[item_description] itemDescription,
-            t4.[stdc_performance] stdcPerformance,
-            t5.[item_unit_value] itemUnitValue,
-            t4.[stdc_maintenance_cicle] [stdcMaintenanceCicle],
-            t4.[stdc_renewal_cicle] stdcRenewalCicle,
-            t4.[stdc_rlay_code] stdcRlayCode,
-            t6.[rlay_description] rlayDescription 
+             t5.item_code itemCode,
+            t5.item_description itemDescription,
+            t4.stdc_performance stdcPerformance,
+            t5.item_unit_value itemUnitValue,
+            t4.stdc_maintenance_cicle [stdcMaintenanceCicle],
+            t4.stdc_renewal_cicle stdcRenewalCicle,
+            t4.stdc_rlay_code stdcRlayCode,
+            t6.rlay_description rlayDescription 
          FROM
-            [tbl_programs_grids] t1   
-            JOIN  [tbl_majors]   t2 ON 
+            tbl_programs_grids t1   
+            JOIN  tbl_majors   t2 ON 
                 t2.major_code = t1.prgd_major_code
-            LEFT JOIN [tbl_courses] t3 ON 
-                t3.[cours_org_code] = t2.major_org_code
-                and t3.cours_code = t1.[prgd_cours_code]
-            JOIN [tbl_standards_courses] t4 ON
-                t4.[stdc_bu_code] LIKE $1
-            AND t4.[stdc_std_code] LIKE $2
-            AND t4.[stdc_purc_code] = $3 
-            AND t4.[stdc_std_version] = $4
-            AND t4.[stdc_cours_code] = t3.[cours_code]
-            AND t4.[stdc_org_code] = t3.[cours_org_code]
-            LEFT JOIN [tbl_items] t5 ON
-               t5.[item_code] = t4.[stdc_item_code]
+            LEFT JOIN tbl_courses t3 ON 
+                t3.cours_org_code = t2.major_org_code
+                and t3.cours_code = t1.prgd_cours_code
+            JOIN tbl_standards_courses t4 ON
+                t4.stdc_bu_code LIKE $1
+            AND t4.stdc_std_code LIKE $2
+            AND t4.stdc_purc_code = $3 
+            AND t4.stdc_std_version = $4
+            AND t4.stdc_cours_code = t3.cours_code
+            AND t4.stdc_org_code = t3.cours_org_code
+            LEFT JOIN tbl_items t5 ON
+               t5.item_code = t4.stdc_item_code
             LEFT JOIN tbl_rooms_layout t6 ON
-                t6.[rlay_code] = t4.[stdc_rlay_code]
+                t6.rlay_code = t4.stdc_rlay_code
          WHERE
-                t1.[prgd_major_code] LIKE $5
-            AND t1.[prgd_level] > 0
-           -- AND t4.[stdc_status] = 'S'
+                t1.prgd_major_code LIKE $5
+            AND t1.prgd_level > 0
+           -- AND t4.stdc_status = 'S'
         `;
 
         const result = await pool.query(sqlGetStandardAppliedToMayor, [buCode, stdCode, purcCode, stdVersion, majorCode]);
@@ -84,46 +84,46 @@ const getReportStandardByRoomLayout = async(buCode, stdCode, purcCode, stdVersio
     try {
         const sqlGetStandardByRoomLayout  = `
             SELECT  
-                t1.[stdc_rlay_code] as stdcRlayCode,
-                t2.[rlay_description] as rlayDescription,
-                t3.[item_code] as itemCode,
-                t3.[item_description] as itemDescription,
-                t4.[cours_code] as coursCode,
-                t4.[cours_description] as  coursDescription,
-                CASE t4.[cours_duration] WHEN 'A' THEN 'Anual'
+                t1.stdc_rlay_code as stdcRlayCode,
+                t2.rlay_description as rlayDescription,
+                t3.item_code as itemCode,
+                t3.item_description as itemDescription,
+                t4.cours_code as coursCode,
+                t4.cours_description as  coursDescription,
+                CASE t4.cours_duration WHEN 'A' THEN 'Anual'
                                 WHEN 'M' THEN 'Mensual'
                                 WHEN 'O' THEN 'Otros'
                                 WHEN 'S' THEN 'Semestral'
                                 WHEN 'T' THEN 'Trimestral'
                                         ELSE 'N/E'
                 END coursDuration,
-                t1.[stdc_performance] as stdcPerformance,
+                t1.stdc_performance as stdcPerformance,
                 CASE 
-                WHEN t1.[stdc_performance] = 0 THEN 0
-                ELSE ROUND(t2.[rlay_capacity] / t1.[stdc_performance] , 0) 
+                WHEN t1.stdc_performance = 0 THEN 0
+                ELSE ROUND(t2.rlay_capacity / t1.stdc_performance , 0) 
                 end quantity,
-                t3.[item_unit_value] as itemUnitValue,
-                t3.[item_unit_value] * 
+                t3.item_unit_value as itemUnitValue,
+                t3.item_unit_value * 
                 CASE 
-                WHEN t1.[stdc_performance] = 0 THEN 0
-                ELSE ROUND ($6 / t1.[stdc_performance], 1)
+                WHEN t1.stdc_performance = 0 THEN 0
+                ELSE ROUND ($6 / t1.stdc_performance, 1)
                 END inversion,
-                t1.[stdc_maintenance_cicle] as stdcMaintenanceCicle,
-                t1.[stdc_renewal_cicle] as stdcRenewalCicle
-        FROM [tbl_standards_courses] t1
-                JOIN [tbl_rooms_layout] t2
-                ON t2.[rlay_code] = t1.[stdc_rlay_code]
-                LEFT JOIN [tbl_items] t3
-                ON t3.[item_code] = t1.[stdc_item_code]
-                LEFT JOIN [tbl_courses] t4
-                ON     t4.[cours_org_code] = t1.[stdc_org_code]
-                    AND t4.[cours_code] = t1.[stdc_cours_code]
-        WHERE     t1.[stdc_bu_code] LIKE $1
-                AND t1.[stdc_std_code] LIKE $2
-                AND t1.[stdc_std_version] = $4
-                AND t1.[stdc_rlay_code] LIKE $5
-                AND t1.[stdc_purc_code] = $3
-    ORDER BY t1.[stdc_rlay_code], t1.[stdc_item_code], t1.[stdc_cours_code];
+                t1.stdc_maintenance_cicle as stdcMaintenanceCicle,
+                t1.stdc_renewal_cicle as stdcRenewalCicle
+        FROM tbl_standards_courses t1
+                JOIN tbl_rooms_layout t2
+                ON t2.rlay_code = t1.stdc_rlay_code
+                LEFT JOIN tbl_items t3
+                ON t3.item_code = t1.stdc_item_code
+                LEFT JOIN tbl_courses t4
+                ON     t4.cours_org_code = t1.stdc_org_code
+                    AND t4.cours_code = t1.stdc_cours_code
+        WHERE     t1.stdc_bu_code LIKE $1
+                AND t1.stdc_std_code LIKE $2
+                AND t1.stdc_std_version = $4
+                AND t1.stdc_rlay_code LIKE $5
+                AND t1.stdc_purc_code = $3
+    ORDER BY t1.stdc_rlay_code, t1.stdc_item_code, t1.stdc_cours_code;
 
         `;
 
@@ -155,67 +155,67 @@ const getReportEquipmentByMayor = async(majorCode, progCode, buCode) => {
         const sqlGetEquipmentByMayor  = `
             SELECT  
                programs_grid.*,
-               t1.[stdc_purc_code] stdcPurcCode,
-               t1.[stdc_item_code] stdcItemCode,
-               t2.[item_description] itemDescription,
-               coalesce(t1.[stdc_performance], 0) stdcPerformance,
+               t1.stdc_purc_code stdcPurcCode,
+               t1.stdc_item_code stdcItemCode,
+               t2.item_description itemDescription,
+               coalesce(t1.stdc_performance, 0) stdcPerformance,
                $4 students,
                CASE
-                  WHEN (t1.[stdc_performance] = 0) OR (t1.[stdc_performance] IS NULL) THEN 0
-                  WHEN t3.[rlay_capacity] > 0 THEN ROUND( t3.[rlay_capacity] / t1.[stdc_performance], 0 )
+                  WHEN (t1.stdc_performance = 0) OR (t1.stdc_performance IS NULL) THEN 0
+                  WHEN t3.rlay_capacity > 0 THEN ROUND( t3.rlay_capacity / t1.stdc_performance, 0 )
                   ELSE
-                    ROUND($4 / t1.[stdc_performance], 0 )
+                    ROUND($4 / t1.stdc_performance, 0 )
                END quantity,
-               t2.[item_unit_value] itemUnitValue,
+               t2.item_unit_value itemUnitValue,
                CASE
-                 WHEN t1.[stdc_performance] = 0 THEN 0
-                  WHEN t3.[rlay_capacity] > 0 THEN t2.[item_unit_value]  * ROUND( t3.[rlay_capacity] / t1.[stdc_performance], 0 )
+                 WHEN t1.stdc_performance = 0 THEN 0
+                  WHEN t3.rlay_capacity > 0 THEN t2.item_unit_value  * ROUND( t3.rlay_capacity / t1.stdc_performance, 0 )
                  ELSE
-                     t2.[item_unit_value] * ROUND( $4 / t1.[stdc_performance], 0 )
+                     t2.item_unit_value * ROUND( $4 / t1.stdc_performance, 0 )
                END inversion,
-               t1.[stdc_maintenance_cicle] stdcMaintenanceCicle,
-               t1.[stdc_renewal_cicle] stdcRenewalCicle,
-               t1.[stdc_rlay_code] stdcRlayCode,
-               coalesce(t3.[rlay_capacity] , 0) rlayCapacity,
-               t3.[rlay_description] rlayDescription
+               t1.stdc_maintenance_cicle stdcMaintenanceCicle,
+               t1.stdc_renewal_cicle stdcRenewalCicle,
+               t1.stdc_rlay_code stdcRlayCode,
+               coalesce(t3.rlay_capacity , 0) rlayCapacity,
+               t3.rlay_description rlayDescription
             FROM (
                SELECT
-                  t2.[major_org_code] majorOrgCode,
-                  t2.[major_code] majorCode,
-                  t1.[prgd_prog_code] prgdProgCode,
-                  t1.[prgd_level] prgdLevel,
-                  t3.[cours_code] coursCode,
-                  t3.[cours_description] coursDescription,
-                  t3.[cours_duration] coursDuration
+                  t2.major_org_code majorOrgCode,
+                  t2.major_code majorCode,
+                  t1.prgd_prog_code prgdProgCode,
+                  t1.prgd_level prgdLevel,
+                  t3.cours_code coursCode,
+                  t3.cours_description coursDescription,
+                  t3.cours_duration coursDuration
                FROM
-                  [tbl_programs_grids] t1
-                  JOIN [tbl_majors] t2 ON
-                      t2.[major_code] = t1.[prgd_major_code]
+                  tbl_programs_grids t1
+                  JOIN tbl_majors t2 ON
+                      t2.major_code = t1.prgd_major_code
                   LEFT JOIN tbl_courses t3 ON
-                      t3.[cours_org_code] = t2.[major_org_code]
-                  AND t3.[cours_code] = t1.[prgd_cours_code]
+                      t3.cours_org_code = t2.major_org_code
+                  AND t3.cours_code = t1.prgd_cours_code
                WHERE
-                      t1.[prgd_major_code] = $1
-                  AND t1.[prgd_prog_code] = $2
-                  AND t1.[prgd_level] > 0
+                      t1.prgd_major_code = $1
+                  AND t1.prgd_prog_code = $2
+                  AND t1.prgd_level > 0
                ) programs_grid
                --LEFT
-               JOIN [tbl_standards_courses] t1 ON
-                   t1.[stdc_bu_code] LIKE $3
-               AND t1.[stdc_org_code] = programs_grid.majorOrgCode
-               AND t1.[stdc_cours_code] = programs_grid.coursCode
-               AND t1.[stdc_status] = 'S'
-               LEFT JOIN [tbl_items] t2 ON
-                  t2.[item_purc_code] = t1.[stdc_purc_code]
-               AND t2.[item_code] = t1.[stdc_item_code]
-               LEFT JOIN [tbl_rooms_layout] t3 ON
-                   t3.[rlay_code] = t1.[stdc_rlay_code]
+               JOIN tbl_standards_courses t1 ON
+                   t1.stdc_bu_code LIKE $3
+               AND t1.stdc_org_code = programs_grid.majorOrgCode
+               AND t1.stdc_cours_code = programs_grid.coursCode
+               AND t1.stdc_status = 'S'
+               LEFT JOIN tbl_items t2 ON
+                  t2.item_purc_code = t1.stdc_purc_code
+               AND t2.item_code = t1.stdc_item_code
+               LEFT JOIN tbl_rooms_layout t3 ON
+                   t3.rlay_code = t1.stdc_rlay_code
             ORDER BY
-               t1.[stdc_org_code],
-               t1.[stdc_scho_code],
+               t1.stdc_org_code,
+               t1.stdc_scho_code,
                programs_grid.[prgdProgCode],
                programs_grid.[prgdLevel],
-               t2.[item_code]
+               t2.item_code
                      `;
 
         const result = await pool.query(sqlGetEquipmentByMayor, [majorCode, progCode, buCode, students]);

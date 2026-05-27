@@ -1,0 +1,22 @@
+CREATE OR REPLACE FUNCTION public.get_max_students_dda(
+    i_proceso    bigint,
+    i_ciudad     character varying,
+    i_asg_codigo character varying
+) RETURNS numeric
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_num_alumnos numeric := 0;
+BEGIN
+    SELECT COALESCE(MAX(gapd_stdc_students_qty), 0) INTO v_num_alumnos
+    FROM public.tbl_gaps_source_demand
+    WHERE gapd_proc_id         = i_proceso
+      AND gapd_stdc_city       = i_ciudad
+      AND gapd_stdc_cours_code = i_asg_codigo;
+
+    RETURN v_num_alumnos;
+END;
+$$;
+
+ALTER FUNCTION public.get_max_students_dda(bigint, character varying, character varying) OWNER TO neondb_owner;

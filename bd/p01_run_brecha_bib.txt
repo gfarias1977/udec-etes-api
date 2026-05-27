@@ -1,0 +1,23 @@
+create or replace procedure p01_run_brecha_bib(IN p_proc_id bigint, IN p_proc_code character varying, IN p_proc_purc_code character varying, IN p_proc_stock bigint, IN p_proc_demand bigint, IN p_proc_standard bigint)
+    language plpgsql
+as
+$$
+DECLARE
+    v_message VARCHAR(500);
+BEGIN
+    CALL public.p02_run_dda_vs_stk(p_proc_code, p_proc_id, p_proc_stock, p_proc_demand, p_proc_standard);
+    CALL public.p03_run_stk_vs_dda(p_proc_code, p_proc_id, p_proc_stock, p_proc_demand, p_proc_standard);
+    CALL public.p04_run_compra_stock_cero(p_proc_id);
+
+EXCEPTION WHEN OTHERS THEN
+    v_message := CONCAT('ERROR IN GAP CALCULATION AT:',
+                        TO_CHAR(public.fncgetdate(),'YYYY-MM-DD HH24:MI:SS'),
+                        ' procCode:', p_proc_code,
+                        ' procId:', p_proc_id::TEXT,
+                        ' ERROR:', SQLERRM);
+    CALL public.add_process_log(p_proc_id, v_message);
+    RAISE;
+END;
+$$;
+
+alter procedure p01_run_brecha_bib(bigint, varchar, varchar, bigint, bigint, bigint) owner to neondb_owner;

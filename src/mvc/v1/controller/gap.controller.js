@@ -152,10 +152,8 @@ const getAllGapStockVsDemandByParameters= async( req, res, next ) => {
 };
 
 const gapCalculation = async (req, res, next) => {
-    checkValidation(req);
-
     try {
-        
+    checkValidation(req);
         const result = await GapModel.gapCalculation(req.body);
 
         if (!result || result.type === 'error') {

@@ -1,0 +1,28 @@
+CREATE OR REPLACE FUNCTION public.get_dda_clase_sin_inst(
+    i_inst     character varying,
+    i_ciudad   character varying,
+    i_iddda    bigint,
+    i_idstd    bigint,
+    i_clase    bigint,
+    i_nalumnos double precision
+) RETURNS double precision
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+    v_dda  double precision := 0;
+    v_rend double precision := 0;
+BEGIN
+    IF i_nalumnos > 0 THEN
+        IF i_inst = '*' THEN
+            v_rend := 16.7;
+        ELSE
+            v_rend := CASE WHEN i_inst = 'UST' THEN 10.0 ELSE 20.0 END;
+        END IF;
+        v_dda := ROUND((i_nalumnos / v_rend)::numeric, 0)::double precision;
+    END IF;
+    RETURN v_dda;
+END;
+$$;
+
+ALTER FUNCTION public.get_dda_clase_sin_inst(character varying, character varying, bigint, bigint, bigint, double precision) OWNER TO neondb_owner;

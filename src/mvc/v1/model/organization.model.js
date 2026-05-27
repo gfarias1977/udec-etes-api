@@ -229,18 +229,18 @@ const createOrganization = async ( {
         
         const sqlCreateOrganization = `
                 INSERT INTO tbl_organizations
-                        ([org_code]
-                        ,[org_description]
-                        ,[org_tax_payer_id]
-                        ,[org_address]
-                        ,[org_department]
-                        ,[org_city]
-                        ,[org_erp_code]
-                        ,[org_uo]
-                        ,[org_legal_entity_id]
-                        ,[org_ledger_id]
-                        ,[org_creation_date]
-                        ,[org_status])
+                        (org_code
+                        ,org_description
+                        ,org_tax_payer_id
+                        ,org_address
+                        ,org_department
+                        ,org_city
+                        ,org_erp_code
+                        ,org_uo
+                        ,org_legal_entity_id
+                        ,org_ledger_id
+                        ,org_creation_date
+                        ,org_status)
                 VALUES
                         ($1
                         ,$2

@@ -552,42 +552,42 @@ const getBookCoverage = async( orgCode, majorCode, progCode, cityCode, idStd, id
                     FROM(
                     SELECT
                             MALLA.*,
-                            [gaps_stdc_purc_code] STA_ACO_CODIGO,
-                            [gaps_stdc_item_code] STA_CBI_CODIGO,
-                            [item_description]    CBI_DESCRIPCION,
-                            FORMAT(ROUND(COALESCE([gaps_stdc_performance], 0),0),'########') STA_RENDIMIENTO,
+                            gaps_stdc_purc_code STA_ACO_CODIGO,
+                            gaps_stdc_item_code STA_CBI_CODIGO,
+                            item_description    CBI_DESCRIPCION,
+                            FORMAT(ROUND(COALESCE(gaps_stdc_performance, 0),0),'########') STA_RENDIMIENTO,
                             get_max_students_dda($6, $4, ASIG_ID) NRO_ALUMNOS,
-                            get_stock_ciudad($7, [gaps_stdc_item_code], $4, '%') STOCK,
-                            get_stock_ciudad($7, [gaps_stdc_item_code], $4, 'IL') STOCK_IL
+                            get_stock_ciudad($7, gaps_stdc_item_code, $4, '%') STOCK,
+                            get_stock_ciudad($7, gaps_stdc_item_code, $4, 'IL') STOCK_IL
                         FROM (
                             SELECT 
-                                [major_org_code]    AS "INST"
-                                ,[prgd_major_code]   AS CARR_ID
-                                ,[prgd_prog_code]    AS PLAN_ID
-                                ,[prgd_level]        AS "NIVEL"
-                                ,[cours_code]        AS ASIG_ID
-                                ,[cours_description] AS "ASIGNATURA"
-                                ,[cours_duration]    AS "DURACION"
+                                major_org_code    AS "INST"
+                                ,prgd_major_code   AS CARR_ID
+                                ,prgd_prog_code    AS PLAN_ID
+                                ,prgd_level        AS "NIVEL"
+                                ,cours_code        AS ASIG_ID
+                                ,cours_description AS "ASIGNATURA"
+                                ,cours_duration    AS "DURACION"
                             FROM tbl_programs_grids
                             JOIN tbl_majors ON 
-                                [major_code] = [prgd_major_code]
+                                major_code = prgd_major_code
                             LEFT JOIN tbl_courses ON 
-                                [cours_org_code] = [major_org_code] 
-                            AND [cours_code] = [prgd_cours_code]
-                            WHERE [prgd_major_code] = coalesce($2,prgd_major_code) --'509' 
-                                AND [prgd_prog_code] = coalesce($3,prgd_prog_code)  --'10'
-                                AND [prgd_level] > 0
+                                cours_org_code = major_org_code 
+                            AND cours_code = prgd_cours_code
+                            WHERE prgd_major_code = coalesce($2,prgd_major_code) --'509' 
+                                AND prgd_prog_code = coalesce($3,prgd_prog_code)  --'10'
+                                AND prgd_level > 0
                             ) MALLA
                             -- AQUI VA EL ESTANDAR HISTORIAL
                             LEFT JOIN tbl_gaps_source_standard ON
-                                [gaps_proc_id]  = $5 --147 PKG_BRECHA_BIB.GET_DEFAULT_FUENTES_ID('STD')
-                            AND [gaps_stdc_purc_code] = 'BIB' --?iAREA
-                            AND [gaps_stdc_org_code] = MALLA.INST
-                            AND [gaps_stdc_cours_code] = MALLA.ASIG_ID
+                                gaps_proc_id  = $5 --147 PKG_BRECHA_BIB.GET_DEFAULT_FUENTES_ID('STD')
+                            AND gaps_stdc_purc_code = 'BIB' --?iAREA
+                            AND gaps_stdc_org_code = MALLA.INST
+                            AND gaps_stdc_cours_code = MALLA.ASIG_ID
                             --
                             LEFT JOIN tbl_items ON
-                                [item_purc_code] = [gaps_stdc_purc_code]
-                            AND [item_code] = [gaps_stdc_item_code]
+                                item_purc_code = gaps_stdc_purc_code
+                            AND item_code = gaps_stdc_item_code
                         ) RES
                     ) RES2
                     ) RES3

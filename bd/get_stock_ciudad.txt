@@ -1,0 +1,33 @@
+CREATE OR REPLACE FUNCTION public.get_stock_ciudad(
+    i_idstock bigint,
+    i_clase   bigint,
+    i_ciudad  character varying,
+    i_tipo    character varying
+) RETURNS double precision
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_total double precision := 0;
+BEGIN
+    SELECT COUNT(*) INTO v_total
+    FROM public.tbl_gaps_source_stock
+    WHERE gapst_proc_id     = i_idstock
+      AND gapst_item_code   = i_clase
+      AND gapst_format_type LIKE i_tipo
+      AND gapst_city        LIKE i_ciudad;
+
+    -- Si es digital ilimitado y no hay en la ciudad, busca si existe en cualquier ciudad
+    IF i_tipo = 'IL' AND v_total = 0 THEN
+        SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END INTO v_total
+        FROM public.tbl_gaps_source_stock
+        WHERE gapst_item_code   = i_clase
+          AND gapst_proc_id     = i_idstock
+          AND gapst_format_type LIKE i_tipo;
+    END IF;
+
+    RETURN v_total;
+END;
+$$;
+
+ALTER FUNCTION public.get_stock_ciudad(bigint, bigint, character varying, character varying) OWNER TO neondb_owner;

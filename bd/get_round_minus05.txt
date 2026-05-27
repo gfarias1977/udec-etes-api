@@ -1,0 +1,13 @@
+CREATE OR REPLACE FUNCTION public.get_round_minus05(
+    i_valor double precision
+) RETURNS double precision
+LANGUAGE sql
+IMMUTABLE STRICT
+AS $$
+    SELECT CASE
+        WHEN i_valor >= 0.1 AND i_valor < 0.5 THEN 1.0
+        ELSE i_valor
+    END;
+$$;
+
+ALTER FUNCTION public.get_round_minus05(double precision) OWNER TO neondb_owner;

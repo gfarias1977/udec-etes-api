@@ -1,0 +1,22 @@
+CREATE OR REPLACE FUNCTION public.get_stock_nacional(
+    i_idstock bigint,
+    i_clase   bigint,
+    i_tipo    character varying
+) RETURNS bigint
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_total bigint := 0;
+BEGIN
+    SELECT COUNT(*) INTO v_total
+    FROM public.tbl_gaps_source_stock
+    WHERE gapst_proc_id     = i_idstock
+      AND gapst_item_code   = i_clase
+      AND gapst_format_type LIKE i_tipo;
+
+    RETURN CASE WHEN v_total > 0 THEN v_total ELSE 0 END;
+END;
+$$;
+
+ALTER FUNCTION public.get_stock_nacional(bigint, bigint, character varying) OWNER TO neondb_owner;
