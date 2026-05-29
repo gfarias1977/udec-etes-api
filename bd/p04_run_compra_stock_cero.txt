@@ -39,7 +39,8 @@ BEGIN
         WHERE gapr_proc_id=p_proceso AND gapr_national_stock=0 AND gapr_demand>0
           AND gapr_org_code='*' AND gapr_scho_code='*' AND gapr_cours_code='*'
           AND gapr_camp_code='*' AND gapr_city_stock_di=0
-    ) s;
+    ) s
+    ON CONFLICT (gapp_proc_id, gapp_stock_type, gapp_year, gapp_city_code, gapp_item_code) DO NOTHING;
 
     CALL public.p041_upd_campos_brecha_compra(p_proceso, v_tipostk::BIGINT, TRUE);
 

@@ -61,15 +61,15 @@ const getAllGapPurchasesByParameters = async (
                 LEFT JOIN tbl_items   t5 ON t5.item_code  = t1.gappd_item_code   AND t5.item_purc_code = 'BIB'
                     
                 WHERE
-                            gappd_proc_id         = coalesce($1            ,gappd_proc_id)
-                        AND gappd_year            = coalesce($2              ,gappd_year)
-                        AND gappd_city_code       = coalesce($3          ,gappd_city_code)
-                        AND gappd_org_code        = coalesce($4           ,gappd_org_code)
-                        AND gappd_camp_code       = coalesce($5          ,gappd_camp_code)
-                        AND gappd_scho_code       = coalesce($6          ,gappd_scho_code)
-                        AND gappd_cours_code      = coalesce($7         ,gappd_cours_code)
-                        AND gappd_item_code       = coalesce($8          ,gappd_item_code)
-                        AND gappd_volumes         = coalesce($9            ,gappd_volumes);
+                            ($1::bigint  IS NULL OR gappd_proc_id    = $1::bigint)
+                        AND ($2::int     IS NULL OR gappd_year       = $2::int)
+                        AND ($3::varchar IS NULL OR gappd_city_code  = $3::varchar)
+                        AND ($4::varchar IS NULL OR gappd_org_code   = $4::varchar)
+                        AND ($5::varchar IS NULL OR gappd_camp_code  = $5::varchar)
+                        AND ($6::varchar IS NULL OR gappd_scho_code  = $6::varchar)
+                        AND ($7::varchar IS NULL OR gappd_cours_code = $7::varchar)
+                        AND ($8::bigint  IS NULL OR gappd_item_code  = $8::bigint)
+                        AND ($9::varchar IS NULL OR gappd_volumes    = $9::varchar);
         `;
 
         const result = await pool.query(sqlGetAllGapPurchasesByParameters, [gapProcId, gapYear, gapCityCode, gapOrgCode, gapCampCode, gapSchoCode, gapCoursCode, gapItemCode, gapVolume]);

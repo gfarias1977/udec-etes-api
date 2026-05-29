@@ -12,23 +12,18 @@ BEGIN
         CALL public.add_process_log(p_proceso, v_message);
     END IF;
 
-    UPDATE public.tbl_gaps_purchase SET
-        gapp_description = (
-            SELECT SUBSTRING(
-                       'T:' || COALESCE(item_value_01,'') ||
-                       '. A:' || COALESCE(item_value_02,'') ||
-                       '. E:' || COALESCE(item_value_03,''),
-                       1, 255)
-            FROM public.tbl_items
-            WHERE item_code = gapp_item_code
-        ),
-        gapp_unit_value = COALESCE((
-            SELECT item_unit_value
-            FROM public.tbl_items
-            WHERE item_code = gapp_item_code
-        ), 0)
-    WHERE gapp_proc_id    = p_proceso
-      AND gapp_stock_type = p_tipostk;
+    -- JOIN reemplaza 2 subconsultas correlacionadas a tbl_items por fila
+    UPDATE public.tbl_gaps_purchase p
+    SET gapp_description = SUBSTRING(
+                               'T:' || COALESCE(i.item_value_01, '') ||
+                               '. A:' || COALESCE(i.item_value_02, '') ||
+                               '. E:' || COALESCE(i.item_value_03, ''),
+                               1, 255),
+        gapp_unit_value  = COALESCE(i.item_unit_value, 0)
+    FROM public.tbl_items i
+    WHERE i.item_code      = p.gapp_item_code
+      AND p.gapp_proc_id   = p_proceso
+      AND p.gapp_stock_type = p_tipostk;
 
     RAISE NOTICE 'ACTUALIZA DESCRIPCION Y V. UNITARIO BRECHA COMPRA OK';
 
@@ -44,4 +39,3 @@ END;
 $$;
 
 alter procedure p041_upd_campos_brecha_compra(bigint, bigint, boolean) owner to neondb_owner;
-

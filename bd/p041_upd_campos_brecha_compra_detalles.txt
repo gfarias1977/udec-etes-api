@@ -11,32 +11,33 @@ BEGIN
         CALL public.add_process_log(p_proceso, v_message);
     END IF;
 
-    UPDATE public.tbl_gaps_purchase_detail SET
-        gappd_org_code       = public.fnc_instituciones_sede(gappd_camp_code),
+    -- JOIN reemplaza:
+    --   fnc_instituciones_sede() por fila (SELECT a tbl_campus)
+    --   2 subconsultas correlacionadas a tbl_items por fila
+    --   1 subconsulta correlacionada a tbl_schools por fila
+    UPDATE public.tbl_gaps_purchase_detail pd
+    SET gappd_org_code       = COALESCE(c.camp_org_code, 'S/R'),
         gappd_list_number    = 0,
         gappd_request_number = 0,
-        gappd_description    = (
-            SELECT SUBSTRING(
-                       'T:' || COALESCE(item_value_01,'') ||
-                       '. A:' || COALESCE(item_value_02,'') ||
-                       '. E:' || COALESCE(item_value_03,''),
-                       1, 255)
-            FROM public.tbl_items
-            WHERE item_code = gappd_item_code
-        ),
-        gappd_unit_value = COALESCE((
-            SELECT item_unit_value
-            FROM public.tbl_items
-            WHERE item_code = gappd_item_code
-        ), 0),
-        gappd_cacc_code = (
-            SELECT scho_cacc_code
-            FROM public.tbl_schools
-            WHERE scho_org_code = gappd_org_code
-              AND scho_code     = gappd_scho_code
+        gappd_description    = SUBSTRING(
+                                   'T:' || COALESCE(i.item_value_01, '') ||
+                                   '. A:' || COALESCE(i.item_value_02, '') ||
+                                   '. E:' || COALESCE(i.item_value_03, ''),
+                                   1, 255),
+        gappd_unit_value     = COALESCE(i.item_unit_value, 0),
+        gappd_cacc_code      = (
+            SELECT s.scho_cacc_code
+            FROM public.tbl_schools s
+            WHERE s.scho_org_code = COALESCE(c.camp_org_code, 'S/R')
+              AND s.scho_code     = pd.gappd_scho_code
+            LIMIT 1
         )
-    WHERE gappd_proc_id   = p_proceso
-      AND gappd_stock_type = p_tipostk;
+    FROM public.tbl_campus c,
+         public.tbl_items i
+    WHERE c.camp_code         = pd.gappd_camp_code
+      AND i.item_code         = pd.gappd_item_code
+      AND pd.gappd_proc_id    = p_proceso
+      AND pd.gappd_stock_type = p_tipostk;
 
     RAISE NOTICE 'ACTUALIZA VALORES EN BRECHA COMPRA DETALLE OK';
 
@@ -49,4 +50,3 @@ END;
 $$;
 
 alter procedure p041_upd_campos_brecha_compra_detalles(bigint, bigint, boolean) owner to neondb_owner;
-

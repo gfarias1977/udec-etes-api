@@ -42,7 +42,66 @@ BEGIN
                         ' procCode:', p_proc_code);
     CALL public.add_process_log(p_proc_id, v_message);
 
+    -- ──────────────────────────────────────────────────────────────────────────
+    -- Pre-aggregate stock (1 scan shared across all 3 INSERT blocks)
+    -- ──────────────────────────────────────────────────────────────────────────
+    DROP TABLE IF EXISTS tmp_stk_ciudad;
+    DROP TABLE IF EXISTS tmp_stk_ciudad_total;
+    DROP TABLE IF EXISTS tmp_stk_item;
+    DROP TABLE IF EXISTS tmp_std_ver;
+
+    CREATE TEMP TABLE tmp_stk_ciudad ON COMMIT DROP AS
+    SELECT gapst_city      AS s_ciudad,
+           gapst_org_code  AS s_org,
+           gapst_item_code AS s_clase,
+           gapst_camp_code AS s_camp_code,
+           SUM(CASE WHEN gapst_format_type = 'FI' THEN 1 ELSE 0 END) AS stock_fi,
+           SUM(CASE WHEN gapst_format_type = 'RE' THEN 1 ELSE 0 END) AS stock_re,
+           SUM(CASE WHEN gapst_format_type = 'IL' THEN 1 ELSE 0 END) AS stock_il
+    FROM public.tbl_gaps_source_stock
+    WHERE gapst_proc_id = p_proc_stock
+    GROUP BY gapst_city, gapst_org_code, gapst_item_code, gapst_camp_code;
+
+    CREATE INDEX ON tmp_stk_ciudad (s_ciudad, s_clase);
+    CREATE INDEX ON tmp_stk_ciudad (s_ciudad, s_org, s_clase);
+
+    -- City-level totals (aggregated from org-level, no extra table scan)
+    CREATE TEMP TABLE tmp_stk_ciudad_total ON COMMIT DROP AS
+    SELECT s_ciudad, s_clase,
+           SUM(stock_fi) AS stock_fi,
+           SUM(stock_re) AS stock_re,
+           SUM(stock_il) AS stock_il
+    FROM tmp_stk_ciudad
+    GROUP BY s_ciudad, s_clase;
+
+    CREATE INDEX ON tmp_stk_ciudad_total (s_ciudad, s_clase);
+
+    -- National totals per item
+    CREATE TEMP TABLE tmp_stk_item ON COMMIT DROP AS
+    SELECT s_clase,
+           SUM(stock_fi + stock_re + stock_il)            AS stock_nacional,
+           CASE WHEN SUM(stock_il) > 0 THEN 1 ELSE 0 END AS has_il_nac
+    FROM tmp_stk_ciudad
+    GROUP BY s_clase;
+
+    CREATE INDEX ON tmp_stk_item (s_clase);
+
+    -- Pre-compute active standard version per (org, school)
+    CREATE TEMP TABLE tmp_std_ver ON COMMIT DROP AS
+    SELECT DISTINCT
+           gaps_stdc_org_code AS sv_org,
+           gaps_stdc_std_code AS sv_std,
+           public.get_ultimo_estandard_activo(
+               'PREGRADO', gaps_stdc_org_code, gaps_stdc_std_code, 'BIB'
+           )                  AS sv_version
+    FROM public.tbl_gaps_source_standard
+    WHERE gaps_proc_id = p_proc_standard AND gaps_stdc_purc_code = 'BIB';
+
+    CREATE INDEX ON tmp_std_ver (sv_org, sv_std);
+
+    -- ──────────────────────────────────────────────────────────────────────────
     -- [1] Por ciudad
+    -- ──────────────────────────────────────────────────────────────────────────
     INSERT INTO tmp_stkvsdda (
         gapr_proc_id, gapr_proc_code, gapr_academic_year, gapr_academic_period,
         gapr_city_code, gapr_camp_code, gapr_org_code, gapr_scho_code, gapr_cours_code,
@@ -52,70 +111,68 @@ BEGIN
     )
     SELECT DISTINCT
         p_proc_id, p_proc_code,
-        COALESCE(AGNOACAD,0), COALESCE(PERIODOACAD,0),
+        COALESCE(AGNOACAD, 0), COALESCE(PERIODOACAD, 0),
         CIUDAD, '*', '*', '*', '*',
-        COALESCE(CLASE,0),
-        COALESCE(STOCK_CIUDAD_FISICO,0), COALESCE(STOCK_CIUDAD_DIG_RES,0),
-        public.get_stock_ciudad(p_proc_stock, CLASE, CIUDAD, 'IL'),
-        COALESCE(STOCK_NACIONAL,0), COALESCE(NALUMNOS,0),
-        CASE WHEN CLASE IS NULL AND NALUMNOS=1 THEN 1
-             WHEN STOCK_CIUDAD_DIG_ILI>0 AND NALUMNOS>0 THEN NALUMNOS
-             WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst('*',CIUDAD,p_proc_demand,p_proc_standard,CLASE,NALUMNOS)
-             ELSE COALESCE(DEMANDA,0) END,
+        COALESCE(CLASE, 0),
+        COALESCE(STOCK_CIUDAD_FISICO, 0), COALESCE(STOCK_CIUDAD_DIG_RES, 0),
+        CASE WHEN COALESCE(STOCK_CIUDAD_DIG_ILI, 0) > 0 THEN STOCK_CIUDAD_DIG_ILI
+             ELSE COALESCE(HAS_IL_NAC, 0) END,
+        COALESCE(STOCK_NACIONAL, 0), COALESCE(NALUMNOS, 0),
+        CASE WHEN CLASE IS NULL AND NALUMNOS = 1 THEN 1
+             WHEN STOCK_CIUDAD_DIG_ILI > 0 AND NALUMNOS > 0 THEN NALUMNOS
+             WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst('*', CIUDAD, p_proc_demand, p_proc_standard, CLASE, NALUMNOS)
+             ELSE COALESCE(DEMANDA, 0) END,
         COALESCE(
-            CASE WHEN CLASE IS NULL AND NALUMNOS=1 THEN 1
-                 WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst('*',NULL,NULL,NULL,CLASE,NALUMNOS)*-1
-                 WHEN DEMANDA=0 THEN 0
-                 WHEN STOCK_CIUDAD_DIG_ILI>0 THEN 0
-                 ELSE (STOCK_CIUDAD_FISICO+STOCK_CIUDAD_DIG_RES)-DEMANDA END, 0),
+            CASE WHEN CLASE IS NULL AND NALUMNOS = 1 THEN 1
+                 WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst('*', NULL, NULL, NULL, CLASE, NALUMNOS) * -1
+                 WHEN DEMANDA = 0 THEN 0
+                 WHEN STOCK_CIUDAD_DIG_ILI > 0 THEN 0
+                 ELSE (STOCK_CIUDAD_FISICO + STOCK_CIUDAD_DIG_RES) - DEMANDA END, 0),
         item_status, item_value_01, item_value_02, item_value_03, 'X', 'CALCULO BRECHA NORMAL'
     FROM (
         SELECT D.AGNOACAD, D.PERIODOACAD, S.CIUDAD, S.CLASE,
-               STOCK_CIUDAD_FISICO, STOCK_CIUDAD_DIG_RES, STOCK_CIUDAD_DIG_ILI,
-               public.get_stock_nacional(p_proc_stock,S.CLASE,'%') STOCK_NACIONAL,
+               S.STOCK_CIUDAD_FISICO, S.STOCK_CIUDAD_DIG_RES, S.STOCK_CIUDAD_DIG_ILI,
+               si.stock_nacional                                                          AS STOCK_NACIONAL,
+               si.has_il_nac                                                              AS HAS_IL_NAC,
                NALUMNOS, DEMANDA
         FROM (
-            SELECT gapst_city CIUDAD, gapst_item_code CLASE,
-                   SUM(CASE WHEN gapst_format_type='FI' THEN 1 ELSE 0 END) STOCK_CIUDAD_FISICO,
-                   SUM(CASE WHEN gapst_format_type='RE' THEN 1 ELSE 0 END) STOCK_CIUDAD_DIG_RES,
-                   SUM(CASE WHEN gapst_format_type='IL' THEN 1 ELSE 0 END) STOCK_CIUDAD_DIG_ILI
-            FROM public.tbl_gaps_source_stock
-            WHERE gapst_proc_id = p_proc_stock
-            GROUP BY gapst_city, gapst_item_code
+            SELECT s_ciudad CIUDAD, s_clase CLASE,
+                   stock_fi STOCK_CIUDAD_FISICO, stock_re STOCK_CIUDAD_DIG_RES,
+                   stock_il STOCK_CIUDAD_DIG_ILI
+            FROM tmp_stk_ciudad_total
         ) S
         LEFT JOIN (
-            SELECT gapd_stdc_academic_year AGNOACAD, gapd_stdc_academic_period PERIODOACAD,
-                   gapd_stdc_city CIUDAD, gapd_stdc_org_code INST,
+            SELECT gapd_stdc_academic_year   AGNOACAD,
+                   gapd_stdc_academic_period  PERIODOACAD,
+                   gapd_stdc_city             CIUDAD,
                    SUM(gapd_stdc_students_qty) NALUMNOS,
-                   SUM(CASE WHEN COALESCE(gaps_stdc_performance,0)=0 THEN 0
-                            ELSE public.get_round_minus05(gapd_stdc_students_qty/gaps_stdc_performance::DOUBLE PRECISION)
-                       END) DEMANDA,
-                   gaps_stdc_item_code CLASE
-            FROM (
-                SELECT gapd_stdc_academic_year, gapd_stdc_academic_period,
-                       gapd_stdc_org_code, gapd_stdc_camp_code, gapd_stdc_city,
-                       gapd_stdc_scho_code, gapd_stdc_cours_code, gapd_stdc_students_qty,
-                       gaps_stdc_item_code, gaps_stdc_performance,
-                       gapd_stdc_act_code, gapd_stdc_act_code_principal, gapd_stdc_course_type
-                FROM public.tbl_gaps_source_demand ED
-                LEFT JOIN public.tbl_gaps_source_standard ST ON
-                    gaps_stdc_purc_code='BIB' AND gaps_stdc_org_code=gapd_stdc_org_code
-                    AND gaps_stdc_std_code=gapd_stdc_scho_code
-                    AND gaps_stdc_std_version=public.get_ultimo_estandard_activo(
-                            'PREGRADO',gaps_stdc_org_code,gaps_stdc_std_code,gaps_stdc_purc_code)
-                    AND gaps_stdc_cours_code=gapd_stdc_cours_code
-                    AND gaps_proc_id=p_proc_standard
-                WHERE gapd_proc_id=p_proc_demand
-                  AND gapd_stdc_act_code=gapd_stdc_act_code_principal
-                  AND CASE WHEN gapd_stdc_course_type='G' THEN 0 ELSE 1 END=1
-            ) tbl01
-            GROUP BY gapd_stdc_academic_year,gapd_stdc_academic_period,
-                     gapd_stdc_city,gapd_stdc_org_code,gaps_stdc_item_code
-        ) D ON D.CIUDAD=S.CIUDAD AND D.CLASE=S.CLASE
+                   SUM(CASE WHEN COALESCE(gaps_stdc_performance, 0) = 0 THEN 0
+                            ELSE public.get_round_minus05(gapd_stdc_students_qty / gaps_stdc_performance::DOUBLE PRECISION)
+                       END)                   DEMANDA,
+                   gaps_stdc_item_code         CLASE
+            FROM public.tbl_gaps_source_demand ED
+            LEFT JOIN tmp_std_ver sv
+                   ON sv.sv_org = gapd_stdc_org_code AND sv.sv_std = gapd_stdc_scho_code
+            LEFT JOIN public.tbl_gaps_source_standard ST
+                   ON gaps_stdc_purc_code    = 'BIB'
+                  AND gaps_stdc_org_code     = gapd_stdc_org_code
+                  AND gaps_stdc_std_code     = gapd_stdc_scho_code
+                  AND gaps_stdc_std_version  = sv.sv_version
+                  AND gaps_stdc_cours_code   = gapd_stdc_cours_code
+                  AND gaps_proc_id           = p_proc_standard
+            WHERE gapd_proc_id              = p_proc_demand
+              AND gapd_stdc_act_code        = gapd_stdc_act_code_principal
+              AND gapd_stdc_course_type    <> 'G'
+            GROUP BY gapd_stdc_academic_year, gapd_stdc_academic_period,
+                     gapd_stdc_city, gaps_stdc_item_code
+        ) D ON D.CIUDAD = S.CIUDAD AND D.CLASE = S.CLASE
+        LEFT JOIN tmp_stk_item si ON si.s_clase = S.CLASE
     ) tbl02
-    LEFT JOIN public.tbl_items ON item_purc_code='BIB' AND item_code=CLASE;
+    LEFT JOIN public.tbl_items ON item_purc_code = 'BIB' AND item_code = CLASE;
 
+    -- ──────────────────────────────────────────────────────────────────────────
     -- [2] Por ciudad + institución
+    -- ──────────────────────────────────────────────────────────────────────────
     INSERT INTO tmp_stkvsdda (
         gapr_proc_id, gapr_proc_code, gapr_academic_year, gapr_academic_period,
         gapr_city_code, gapr_camp_code, gapr_org_code, gapr_scho_code, gapr_cours_code,
@@ -125,73 +182,70 @@ BEGIN
     )
     SELECT DISTINCT
         p_proc_id, p_proc_code,
-        COALESCE(AGNOACAD,0), COALESCE(PERIODOACAD,0),
+        COALESCE(AGNOACAD, 0), COALESCE(PERIODOACAD, 0),
         CIUDAD, INST, '*', '*', '*',
-        COALESCE(CLASE,0),
-        COALESCE(STOCK_CIUDAD_FISICO,0), COALESCE(STOCK_CIUDAD_DIG_RES,0),
-        CASE WHEN STOCK_CIUDAD_DIG_ILI>0 AND NALUMNOS>0 THEN NALUMNOS ELSE COALESCE(STOCK_CIUDAD_DIG_ILI,0) END,
-        COALESCE(STOCK_NACIONAL,0), COALESCE(NALUMNOS,0),
-        CASE WHEN CLASE IS NULL AND NALUMNOS=1 THEN 1
-             WHEN CLASE IS NULL AND NALUMNOS>0 AND INST='UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric,2)
-             WHEN CLASE IS NULL AND NALUMNOS>0 AND INST<>'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric,2)
-             WHEN STOCK_CIUDAD_DIG_ILI>0 AND NALUMNOS>0 THEN NALUMNOS
-             WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST,NULL,NULL,NULL,CLASE,NALUMNOS)
-             ELSE COALESCE(DEMANDA,0) END,
+        COALESCE(CLASE, 0),
+        COALESCE(STOCK_CIUDAD_FISICO, 0), COALESCE(STOCK_CIUDAD_DIG_RES, 0),
+        CASE WHEN STOCK_CIUDAD_DIG_ILI > 0 AND NALUMNOS > 0 THEN NALUMNOS ELSE COALESCE(STOCK_CIUDAD_DIG_ILI, 0) END,
+        COALESCE(STOCK_NACIONAL, 0), COALESCE(NALUMNOS, 0),
+        CASE WHEN CLASE IS NULL AND NALUMNOS = 1 THEN 1
+             WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST = 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric, 2)
+             WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST <> 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric, 2)
+             WHEN STOCK_CIUDAD_DIG_ILI > 0 AND NALUMNOS > 0 THEN NALUMNOS
+             WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST, NULL, NULL, NULL, CLASE, NALUMNOS)
+             ELSE COALESCE(DEMANDA, 0) END,
         COALESCE(
-            CASE WHEN CLASE IS NULL AND NALUMNOS=1 THEN 1
-                 WHEN CLASE IS NULL AND NALUMNOS>0 AND INST='UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric,2)
-                 WHEN CLASE IS NULL AND NALUMNOS>0 AND INST<>'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric,2)
-                 WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST,NULL,NULL,NULL,CLASE,NALUMNOS)*-1
-                 WHEN DEMANDA=0 THEN 0
-                 WHEN STOCK_CIUDAD_DIG_ILI>0 THEN 0
-                 ELSE (STOCK_CIUDAD_FISICO+STOCK_CIUDAD_DIG_RES)-DEMANDA END, 0),
+            CASE WHEN CLASE IS NULL AND NALUMNOS = 1 THEN 1
+                 WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST = 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric, 2)
+                 WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST <> 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric, 2)
+                 WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST, NULL, NULL, NULL, CLASE, NALUMNOS) * -1
+                 WHEN DEMANDA = 0 THEN 0
+                 WHEN STOCK_CIUDAD_DIG_ILI > 0 THEN 0
+                 ELSE (STOCK_CIUDAD_FISICO + STOCK_CIUDAD_DIG_RES) - DEMANDA END, 0),
         item_status, item_value_01, item_value_02, item_value_03, 'X', 'CALCULO BRECHA NORMAL'
     FROM (
         SELECT D.AGNOACAD, D.PERIODOACAD, S.CIUDAD, S.INST, S.CLASE,
-               STOCK_CIUDAD_FISICO, STOCK_CIUDAD_DIG_RES, STOCK_CIUDAD_DIG_ILI,
-               public.get_stock_nacional(p_proc_stock,S.CLASE,'%') STOCK_NACIONAL,
-               NALUMNOS, DEMANDA
+               S.STOCK_CIUDAD_FISICO, S.STOCK_CIUDAD_DIG_RES, S.STOCK_CIUDAD_DIG_ILI,
+               si.stock_nacional AS STOCK_NACIONAL, NALUMNOS, DEMANDA
         FROM (
-            SELECT gapst_city CIUDAD, gapst_org_code INST, gapst_item_code CLASE,
-                   SUM(CASE WHEN gapst_format_type='FI' THEN 1 ELSE 0 END) STOCK_CIUDAD_FISICO,
-                   SUM(CASE WHEN gapst_format_type='RE' THEN 1 ELSE 0 END) STOCK_CIUDAD_DIG_RES,
-                   SUM(CASE WHEN gapst_format_type='IL' THEN 1 ELSE 0 END) STOCK_CIUDAD_DIG_ILI
-            FROM public.tbl_gaps_source_stock WHERE gapst_proc_id=p_proc_stock
-            GROUP BY gapst_city, gapst_org_code, gapst_item_code
+            SELECT s_ciudad CIUDAD, s_org INST, s_clase CLASE,
+                   stock_fi STOCK_CIUDAD_FISICO, stock_re STOCK_CIUDAD_DIG_RES,
+                   stock_il STOCK_CIUDAD_DIG_ILI
+            FROM tmp_stk_ciudad
         ) S
         LEFT JOIN (
-            SELECT gapd_stdc_academic_year AGNOACAD, gapd_stdc_academic_period PERIODOACAD,
-                   gapd_stdc_city CIUDAD, gapd_stdc_org_code INST,
+            SELECT gapd_stdc_academic_year   AGNOACAD,
+                   gapd_stdc_academic_period  PERIODOACAD,
+                   gapd_stdc_city             CIUDAD,
+                   gapd_stdc_org_code         INST,
                    SUM(gapd_stdc_students_qty) NALUMNOS,
-                   SUM(CASE WHEN COALESCE(gaps_stdc_performance,0)=0 THEN 0
-                            ELSE public.get_round_minus05(gapd_stdc_students_qty/gaps_stdc_performance::DOUBLE PRECISION)
-                       END) DEMANDA,
-                   gaps_stdc_item_code CLASE
-            FROM (
-                SELECT gapd_stdc_academic_year, gapd_stdc_academic_period, gapd_stdc_org_code,
-                       gapd_stdc_camp_code, gapd_stdc_city, gapd_stdc_scho_code,
-                       gapd_stdc_cours_code, gapd_stdc_students_qty, gaps_stdc_item_code,
-                       gaps_stdc_performance, gapd_stdc_act_code,
-                       gapd_stdc_act_code_principal, gapd_stdc_course_type
-                FROM public.tbl_gaps_source_demand ED
-                LEFT JOIN public.tbl_gaps_source_standard ST ON
-                    gaps_stdc_purc_code='BIB' AND gaps_stdc_org_code=gapd_stdc_org_code
-                    AND gaps_stdc_std_code=gapd_stdc_scho_code
-                    AND gaps_stdc_std_version=public.get_ultimo_estandard_activo(
-                            'PREGRADO',gaps_stdc_org_code,gaps_stdc_std_code,gaps_stdc_purc_code)
-                    AND gaps_stdc_cours_code=gapd_stdc_cours_code
-                    AND gaps_proc_id=p_proc_standard
-                WHERE gapd_proc_id=p_proc_demand
-                  AND gapd_stdc_act_code=gapd_stdc_act_code_principal
-                  AND CASE WHEN gapd_stdc_course_type='G' THEN 0 ELSE 1 END=1
-            ) tbl01
-            GROUP BY gapd_stdc_academic_year,gapd_stdc_academic_period,
-                     gapd_stdc_city,gapd_stdc_org_code,gaps_stdc_item_code
-        ) D ON D.CIUDAD=S.CIUDAD AND D.INST=S.INST AND D.CLASE=S.CLASE
+                   SUM(CASE WHEN COALESCE(gaps_stdc_performance, 0) = 0 THEN 0
+                            ELSE public.get_round_minus05(gapd_stdc_students_qty / gaps_stdc_performance::DOUBLE PRECISION)
+                       END)                   DEMANDA,
+                   gaps_stdc_item_code         CLASE
+            FROM public.tbl_gaps_source_demand ED
+            LEFT JOIN tmp_std_ver sv
+                   ON sv.sv_org = gapd_stdc_org_code AND sv.sv_std = gapd_stdc_scho_code
+            LEFT JOIN public.tbl_gaps_source_standard ST
+                   ON gaps_stdc_purc_code    = 'BIB'
+                  AND gaps_stdc_org_code     = gapd_stdc_org_code
+                  AND gaps_stdc_std_code     = gapd_stdc_scho_code
+                  AND gaps_stdc_std_version  = sv.sv_version
+                  AND gaps_stdc_cours_code   = gapd_stdc_cours_code
+                  AND gaps_proc_id           = p_proc_standard
+            WHERE gapd_proc_id              = p_proc_demand
+              AND gapd_stdc_act_code        = gapd_stdc_act_code_principal
+              AND gapd_stdc_course_type    <> 'G'
+            GROUP BY gapd_stdc_academic_year, gapd_stdc_academic_period,
+                     gapd_stdc_city, gapd_stdc_org_code, gaps_stdc_item_code
+        ) D ON D.CIUDAD = S.CIUDAD AND D.INST = S.INST AND D.CLASE = S.CLASE
+        LEFT JOIN tmp_stk_item si ON si.s_clase = S.CLASE
     ) tbl02
-    LEFT JOIN public.tbl_items ON item_purc_code='BIB' AND item_code=CLASE;
+    LEFT JOIN public.tbl_items ON item_purc_code = 'BIB' AND item_code = CLASE;
 
+    -- ──────────────────────────────────────────────────────────────────────────
     -- [3] Por ciudad + institución + uacad + asig
+    -- ──────────────────────────────────────────────────────────────────────────
     INSERT INTO tmp_stkvsdda (
         gapr_proc_id, gapr_proc_code, gapr_academic_year, gapr_academic_period,
         gapr_city_code, gapr_camp_code, gapr_org_code, gapr_scho_code, gapr_cours_code,
@@ -201,75 +255,71 @@ BEGIN
     )
     SELECT DISTINCT
         p_proc_id, p_proc_code,
-        COALESCE(AGNOACAD,0), COALESCE(PERIODOACAD,0),
-        CIUDAD, INST, '*', COALESCE(UACAD,'*'), COALESCE(ASIG,'*'),
-        COALESCE(CLASE,0),
-        COALESCE(STOCK_CIUDAD_FISICO,0), COALESCE(STOCK_CIUDAD_DIG_RES,0),
-        CASE WHEN STOCK_CIUDAD_DIG_ILI>0 AND NALUMNOS>0 THEN NALUMNOS ELSE COALESCE(STOCK_CIUDAD_DIG_ILI,0) END,
-        COALESCE(STOCK_NACIONAL,0), COALESCE(NALUMNOS,0),
-        CASE WHEN CLASE IS NULL AND NALUMNOS=1 THEN 1
-             WHEN CLASE IS NULL AND NALUMNOS>0 AND INST='UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric,2)
-             WHEN CLASE IS NULL AND NALUMNOS>0 AND INST<>'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric,2)
-             WHEN STOCK_CIUDAD_DIG_ILI>0 AND NALUMNOS>0 THEN NALUMNOS
-             WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST,NULL,NULL,NULL,CLASE,NALUMNOS)
-             ELSE COALESCE(DEMANDA,0) END,
+        COALESCE(AGNOACAD, 0), COALESCE(PERIODOACAD, 0),
+        CIUDAD, INST, '*', COALESCE(UACAD, '*'), COALESCE(ASIG, '*'),
+        COALESCE(CLASE, 0),
+        COALESCE(STOCK_CIUDAD_FISICO, 0), COALESCE(STOCK_CIUDAD_DIG_RES, 0),
+        CASE WHEN STOCK_CIUDAD_DIG_ILI > 0 AND NALUMNOS > 0 THEN NALUMNOS ELSE COALESCE(STOCK_CIUDAD_DIG_ILI, 0) END,
+        COALESCE(STOCK_NACIONAL, 0), COALESCE(NALUMNOS, 0),
+        CASE WHEN CLASE IS NULL AND NALUMNOS = 1 THEN 1
+             WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST = 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric, 2)
+             WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST <> 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric, 2)
+             WHEN STOCK_CIUDAD_DIG_ILI > 0 AND NALUMNOS > 0 THEN NALUMNOS
+             WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST, NULL, NULL, NULL, CLASE, NALUMNOS)
+             ELSE COALESCE(DEMANDA, 0) END,
         COALESCE(
-            CASE WHEN CLASE IS NULL AND NALUMNOS=1 THEN 1
-                 WHEN CLASE IS NULL AND NALUMNOS>0 AND INST='UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric,2)
-                 WHEN CLASE IS NULL AND NALUMNOS>0 AND INST<>'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric,2)
-                 WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST,NULL,NULL,NULL,CLASE,NALUMNOS)*-1
-                 WHEN DEMANDA=0 THEN 0
-                 WHEN STOCK_CIUDAD_DIG_ILI>0 THEN 0
-                 ELSE (STOCK_CIUDAD_FISICO+STOCK_CIUDAD_DIG_RES)-DEMANDA END, 0),
+            CASE WHEN CLASE IS NULL AND NALUMNOS = 1 THEN 1
+                 WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST = 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/10)::numeric, 2)
+                 WHEN CLASE IS NULL AND NALUMNOS > 0 AND INST <> 'UST' THEN ROUND(public.get_round_minus05(NALUMNOS/20)::numeric, 2)
+                 WHEN CLASE IS NULL THEN public.get_dda_clase_sin_inst(INST, NULL, NULL, NULL, CLASE, NALUMNOS) * -1
+                 WHEN DEMANDA = 0 THEN 0
+                 WHEN STOCK_CIUDAD_DIG_ILI > 0 THEN 0
+                 ELSE (STOCK_CIUDAD_FISICO + STOCK_CIUDAD_DIG_RES) - DEMANDA END, 0),
         item_status, item_value_01, item_value_02, item_value_03, 'X', 'CALCULO BRECHA NORMAL'
     FROM (
         SELECT D.AGNOACAD, D.PERIODOACAD, S.CIUDAD, S.INST, D.UACAD, D.ASIG, S.CLASE,
-               STOCK_CIUDAD_FISICO, STOCK_CIUDAD_DIG_RES, STOCK_CIUDAD_DIG_ILI,
-               public.get_stock_nacional(p_proc_stock,S.CLASE,'%') STOCK_NACIONAL,
-               NALUMNOS, DEMANDA
+               S.STOCK_CIUDAD_FISICO, S.STOCK_CIUDAD_DIG_RES, S.STOCK_CIUDAD_DIG_ILI,
+               si.stock_nacional AS STOCK_NACIONAL, NALUMNOS, DEMANDA
         FROM (
-            SELECT gapst_city CIUDAD, gapst_org_code INST, gapst_item_code CLASE,
-                   SUM(CASE WHEN gapst_format_type='FI' THEN 1 ELSE 0 END) STOCK_CIUDAD_FISICO,
-                   SUM(CASE WHEN gapst_format_type='RE' THEN 1 ELSE 0 END) STOCK_CIUDAD_DIG_RES,
-                   SUM(CASE WHEN gapst_format_type='IL' THEN 1 ELSE 0 END) STOCK_CIUDAD_DIG_ILI
-            FROM public.tbl_gaps_source_stock WHERE gapst_proc_id=p_proc_stock
-            GROUP BY gapst_city, gapst_org_code, gapst_item_code
+            SELECT s_ciudad CIUDAD, s_org INST, s_clase CLASE,
+                   stock_fi STOCK_CIUDAD_FISICO, stock_re STOCK_CIUDAD_DIG_RES,
+                   stock_il STOCK_CIUDAD_DIG_ILI
+            FROM tmp_stk_ciudad
         ) S
         LEFT JOIN (
-            SELECT gapd_stdc_academic_year AGNOACAD, gapd_stdc_academic_period PERIODOACAD,
-                   gapd_stdc_city CIUDAD, gapd_stdc_org_code INST,
-                   gapd_stdc_scho_code UACAD, gapd_stdc_cours_code ASIG,
+            SELECT gapd_stdc_academic_year   AGNOACAD,
+                   gapd_stdc_academic_period  PERIODOACAD,
+                   gapd_stdc_city             CIUDAD,
+                   gapd_stdc_org_code         INST,
+                   gapd_stdc_scho_code        UACAD,
+                   gapd_stdc_cours_code       ASIG,
                    SUM(gapd_stdc_students_qty) NALUMNOS,
-                   SUM(CASE WHEN COALESCE(gaps_stdc_performance,0)=0 THEN 0
-                            ELSE public.get_round_minus05(gapd_stdc_students_qty/gaps_stdc_performance::DOUBLE PRECISION)
-                       END) DEMANDA,
-                   gaps_stdc_item_code CLASE
-            FROM (
-                SELECT gapd_stdc_academic_year, gapd_stdc_academic_period, gapd_stdc_org_code,
-                       gapd_stdc_camp_code, gapd_stdc_city, gapd_stdc_scho_code,
-                       gapd_stdc_cours_code, gapd_stdc_students_qty, gaps_stdc_item_code,
-                       gaps_stdc_performance, gapd_stdc_act_code,
-                       gapd_stdc_act_code_principal, gapd_stdc_course_type
-                FROM public.tbl_gaps_source_demand ED
-                LEFT JOIN public.tbl_gaps_source_standard ST ON
-                    gaps_stdc_purc_code='BIB' AND gaps_stdc_org_code=gapd_stdc_org_code
-                    AND gaps_stdc_std_code=gapd_stdc_scho_code
-                    AND gaps_stdc_std_version=public.get_ultimo_estandard_activo(
-                            'PREGRADO',gaps_stdc_org_code,gaps_stdc_std_code,gaps_stdc_purc_code)
-                    AND gaps_stdc_cours_code=gapd_stdc_cours_code
-                    AND gaps_proc_id=p_proc_standard
-                WHERE gapd_proc_id=p_proc_demand
-                  AND gapd_stdc_act_code=gapd_stdc_act_code_principal
-                  AND CASE WHEN gapd_stdc_course_type='G' THEN 0 ELSE 1 END=1
-            ) tbl01
-            GROUP BY gapd_stdc_academic_year, gapd_stdc_academic_period, gapd_stdc_city,
-                     gapd_stdc_org_code, gapd_stdc_scho_code, gapd_stdc_cours_code,
-                     gaps_stdc_item_code
-        ) D ON D.CIUDAD=S.CIUDAD AND D.INST=S.INST AND D.CLASE=S.CLASE
+                   SUM(CASE WHEN COALESCE(gaps_stdc_performance, 0) = 0 THEN 0
+                            ELSE public.get_round_minus05(gapd_stdc_students_qty / gaps_stdc_performance::DOUBLE PRECISION)
+                       END)                   DEMANDA,
+                   gaps_stdc_item_code         CLASE
+            FROM public.tbl_gaps_source_demand ED
+            LEFT JOIN tmp_std_ver sv
+                   ON sv.sv_org = gapd_stdc_org_code AND sv.sv_std = gapd_stdc_scho_code
+            LEFT JOIN public.tbl_gaps_source_standard ST
+                   ON gaps_stdc_purc_code    = 'BIB'
+                  AND gaps_stdc_org_code     = gapd_stdc_org_code
+                  AND gaps_stdc_std_code     = gapd_stdc_scho_code
+                  AND gaps_stdc_std_version  = sv.sv_version
+                  AND gaps_stdc_cours_code   = gapd_stdc_cours_code
+                  AND gaps_proc_id           = p_proc_standard
+            WHERE gapd_proc_id              = p_proc_demand
+              AND gapd_stdc_act_code        = gapd_stdc_act_code_principal
+              AND gapd_stdc_course_type    <> 'G'
+            GROUP BY gapd_stdc_academic_year, gapd_stdc_academic_period,
+                     gapd_stdc_city, gapd_stdc_org_code, gapd_stdc_scho_code,
+                     gapd_stdc_cours_code, gaps_stdc_item_code
+        ) D ON D.CIUDAD = S.CIUDAD AND D.INST = S.INST AND D.CLASE = S.CLASE
+        LEFT JOIN tmp_stk_item si ON si.s_clase = S.CLASE
     ) tbl02
-    LEFT JOIN public.tbl_items ON item_purc_code='BIB' AND item_code=CLASE;
+    LEFT JOIN public.tbl_items ON item_purc_code = 'BIB' AND item_code = CLASE;
 
-    -- Eliminar duplicados (ROW_NUMBER > 1) antes del INSERT definitivo
+    -- Eliminar duplicados usando ROW_NUMBER antes del INSERT definitivo
     DELETE FROM tmp_stkvsdda
     WHERE gapr_id IN (
         SELECT gapr_id FROM (
@@ -278,7 +328,7 @@ BEGIN
                        PARTITION BY gapr_proc_id, gapr_academic_year, gapr_academic_period,
                                     gapr_city_code, gapr_org_code, gapr_scho_code,
                                     gapr_cours_code, gapr_item_code
-                       ORDER BY     gapr_id
+                       ORDER BY gapr_id
                    ) AS rn
             FROM tmp_stkvsdda
         ) t WHERE t.rn > 1
@@ -303,34 +353,51 @@ BEGIN
     GET DIAGNOSTICS v_row_count = ROW_COUNT;
     v_o_result := v_row_count;
 
-    -- Actualizar sede y volúmenes
-    UPDATE public.tbl_gaps_dda_vs_stock SET
-        gapr_camp_code = (
-            SELECT DISTINCT gapst_camp_code FROM public.tbl_gaps_source_stock
-            WHERE gapst_city=gapr_city_code AND gapst_org_code=gapr_org_code LIMIT 1
-        )
-    WHERE gapr_proc_id=p_proc_id AND gapr_org_code<>'*';
-
-    UPDATE public.tbl_gaps_dda_vs_stock SET
-        gapr_volume = COALESCE((
-            SELECT DISTINCT gapst_volumen FROM public.tbl_gaps_source_stock
-            WHERE gapst_city=gapr_city_code AND gapst_item_code=gapr_item_code
-              AND gapst_proc_id=p_proc_stock AND gapst_volumen='S' LIMIT 1
+    -- ──────────────────────────────────────────────────────────────────────────
+    -- Actualizar sede y volúmenes en un solo UPDATE (fusión de 2 UPDATEs)
+    -- ──────────────────────────────────────────────────────────────────────────
+    UPDATE public.tbl_gaps_dda_vs_stock t
+    SET gapr_camp_code = stk.s_camp_code,
+        gapr_volume    = COALESCE((
+            SELECT gapst_volumen
+            FROM public.tbl_gaps_source_stock
+            WHERE gapst_proc_id  = p_proc_stock
+              AND gapst_volumen  = 'S'
+              AND gapst_city     = t.gapr_city_code
+              AND gapst_item_code = t.gapr_item_code
+            LIMIT 1
         ), 'N')
-    WHERE gapr_proc_id=p_proc_id AND gapr_org_code<>'*';
+    FROM (
+        SELECT DISTINCT ON (s_ciudad, s_org) s_ciudad, s_org, s_camp_code
+        FROM tmp_stk_ciudad
+        ORDER BY s_ciudad, s_org, s_camp_code
+    ) stk
+    WHERE t.gapr_proc_id    = p_proc_id
+      AND t.gapr_org_code  <> '*'
+      AND stk.s_ciudad       = t.gapr_city_code
+      AND stk.s_org          = t.gapr_org_code;
 
+    -- ──────────────────────────────────────────────────────────────────────────
     -- Actualizar demanda/brecha nivel detalle desde nivel ciudad-clase
-    UPDATE public.tbl_gaps_stock_vs_dda SET
-        gapr_demand = (SELECT SQ.gapr_demand FROM public.tbl_gaps_stock_vs_dda SQ
-                       WHERE SQ.gapr_proc_id=gapr_proc_id AND SQ.gapr_item_code=gapr_item_code
-                         AND SQ.gapr_city_code=gapr_city_code AND SQ.gapr_scho_code='*'
-                         AND SQ.gapr_cours_code='*' AND SQ.gapr_org_code='*' LIMIT 1),
-        gapr_gap    = (SELECT SQ.gapr_gap FROM public.tbl_gaps_stock_vs_dda SQ
-                       WHERE SQ.gapr_proc_id=gapr_proc_id AND SQ.gapr_item_code=gapr_item_code
-                         AND SQ.gapr_city_code=gapr_city_code AND SQ.gapr_scho_code='*'
-                         AND SQ.gapr_cours_code='*' AND SQ.gapr_org_code='*' LIMIT 1),
+    -- UPDATE FROM reemplaza 2 subconsultas correlacionadas por fila
+    -- ──────────────────────────────────────────────────────────────────────────
+    UPDATE public.tbl_gaps_stock_vs_dda t
+    SET gapr_demand      = sq.gapr_demand,
+        gapr_gap         = sq.gapr_gap,
         gapr_observation = 'SE ACTUALIZA DEMANDA Y BRECHA SEGUN NIVEL CLASE-CIUDAD'
-    WHERE gapr_proc_id=p_proc_id AND gapr_scho_code<>'*' AND gapr_cours_code<>'*';
+    FROM (
+        SELECT gapr_item_code, gapr_city_code, gapr_demand, gapr_gap
+        FROM public.tbl_gaps_stock_vs_dda
+        WHERE gapr_proc_id    = p_proc_id
+          AND gapr_scho_code  = '*'
+          AND gapr_cours_code = '*'
+          AND gapr_org_code   = '*'
+    ) sq
+    WHERE t.gapr_proc_id    = p_proc_id
+      AND t.gapr_scho_code  <> '*'
+      AND t.gapr_cours_code <> '*'
+      AND t.gapr_item_code  = sq.gapr_item_code
+      AND t.gapr_city_code  = sq.gapr_city_code;
 
     v_message := CONCAT('STOCK-VS-DDA: COMPLETED rows:', v_o_result::TEXT,
                         ' AT:', TO_CHAR(public.fncgetdate(),'YYYY-MM-DD HH24:MI:SS'));
@@ -347,4 +414,3 @@ END;
 $$;
 
 alter procedure p03_run_stk_vs_dda(varchar, bigint, bigint, bigint, bigint) owner to neondb_owner;
-

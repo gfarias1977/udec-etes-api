@@ -3,6 +3,8 @@ const { pool } = require('../../../services/database');
 const { updateMultipleColumnSet } = require('../../../utils/common.utils');
 const ProcessModel = require('./process.model');
 const ProcessLogModel = require('./processLog.model');
+const { getBoss } = require('../../../services/pgBoss');
+const { GAP_CALCULATION_QUEUE } = require('../../../services/gapWorker');
 
 
 const getAllGapDemandVsStockByParameters = async (
@@ -23,43 +25,44 @@ const getAllGapDemandVsStockByParameters = async (
     try {
         const sqlGetAllGapDemandVsStock = `
         SELECT 
-             t1.gapr_proc_id             as gaprProcId  
-            ,t1.gapr_proc_code           as gaprProcCode          
-            ,t1.gapr_academic_year       as gaprAcademicYear   
-            ,t1.gapr_academic_period     as gaprAcademicPeriod
-            ,t1.gapr_city_code           as gaprCityCode
-            ,t1.gapr_org_code            as gaprOrgCode
-            ,t1.gapr_scho_code           as gaprSchoCode
-            ,t3.scho_description         as gaprSchoDescription
-            ,t1.gapr_cours_code          as gaprCoursCode
-            ,t4.cours_description        as gaprCoursDescription
-            ,t1.gapr_item_code           as gaprItemCode
-            ,t1.gapr_camp_code           as gaprCampCode
-            ,t2.camp_description         as gaprCampDescription
-            ,t1.gapr_city_stock_fi       as gaprCityStockFi
-            ,t1.gapr_city_stock_dr       as gaprCityStockDr
-            ,t1.gapr_city_stock_di       as gaprCityStockDi
-            ,t1.gapr_national_stock      as gaprNationalStock
-            ,t1.gapr_student_quantity    as gaprStudentQuantity
-            ,t1.gapr_demand              as gaprDemand
-            ,t1.gapr_gap                 as gaprGap
-            ,t1.gapr_item_active         as gaprItemActive
-            ,t1.gapr_title               as gaprTitle
-            ,t1.gapr_author              as gaprAuthor
-            ,t1.gapr_publisher           as gaprPublisher
+             t1.gapr_proc_id             as "gaprProcId"  
+            ,t1.gapr_proc_code           as "gaprProcCode"          
+            ,t1.gapr_academic_year       as "gaprAcademicYear"   
+            ,t1.gapr_academic_period     as "gaprAcademicPeriod"
+            ,t1.gapr_city_code           as "gaprCityCode"
+            ,t1.gapr_org_code            as "gaprOrgCode"
+            ,t1.gapr_scho_code           as "gaprSchoCode"
+            ,t3.scho_description         as "gaprSchoDescription"
+            ,t1.gapr_cours_code          as "gaprCoursCode"
+            ,t4.cours_description        as "gaprCoursDescription"
+            ,t1.gapr_item_code           as "gaprItemCode"
+            ,t1.gapr_camp_code           as "gaprCampCode"
+            ,t2.camp_description         as "gaprCampDescription"
+            ,t1.gapr_city_stock_fi       as "gaprCityStockFi"
+            ,t1.gapr_city_stock_dr       as "gaprCityStockDr"
+            ,t1.gapr_city_stock_di       as "gaprCityStockDi"
+            ,t1.gapr_national_stock      as "gaprNationalStock"
+            ,t1.gapr_student_quantity    as "gaprStudentQuantity"
+            ,t1.gapr_demand              as "gaprDemand"
+            ,t1.gapr_gap                 as "gaprGap"
+            ,t1.gapr_item_active         as "gaprItemActive"
+            ,t1.gapr_title               as "gaprTitle"
+            ,t1.gapr_author              as "gaprAuthor"
+            ,t1.gapr_publisher           as "gaprPublisher"
             ,CASE t1.gapr_volume
             WHEN 'X' THEN 'Sin Info.'
             ELSE t1.gapr_volume
-            END gaprVolume
-            ,coalesce(t1.gapr_observation,'CALCULO BRECHA NORMAL') gaprObservation
+            END "gaprVolume"
+            ,coalesce(t1.gapr_observation,'CALCULO BRECHA NORMAL') "gaprObservation"
         FROM tbl_gaps_dda_vs_stock t1
-    
+
         LEFT JOIN tbl_campus t2 ON t2.camp_code   = t1.gapr_camp_code   AND t2.camp_org_code = t1.gapr_org_code
         LEFT JOIN tbl_schools t3 ON t3.scho_code  = t1.gapr_scho_code   AND t3.scho_org_code = t1.gapr_org_code
         LEFT JOIN tbl_courses t4 ON t4.cours_code = t1.gapr_cours_code  AND t4.cours_org_code= t1.gapr_org_code
-    
+
         WHERE
                     gapr_proc_id         = coalesce($1            ,gapr_proc_id)
+                AND gapr_proc_code       = coalesce($2            ,gapr_proc_code)
                 AND gapr_academic_year   = coalesce($3  ,gapr_academic_year)
                 AND gapr_academic_period = coalesce($4,gapr_academic_period)
                 AND gapr_city_code       = coalesce($5          ,gapr_city_code)
@@ -110,43 +113,44 @@ const getAllGapStockVsDemandByParameters = async (
     try {
         const sqlGetAllGapStockVsDemand = `
         SELECT 
-             t1.gapr_proc_id             as gaprProcId    
-            ,t1.gapr_proc_code           as gaprProcCode       
-            ,t1.gapr_academic_year       as gaprAcademicYear   
-            ,t1.gapr_academic_period     as gaprAcademicPeriod
-            ,t1.gapr_city_code           as gaprCityCode
-            ,t1.gapr_org_code            as gaprOrgCode
-            ,t1.gapr_scho_code           as gaprSchoCode
-            ,t3.scho_description         as gaprSchoDescription
-            ,t1.gapr_cours_code          as gaprCoursCode
-            ,t4.cours_description        as gaprCoursDescription
-            ,t1.gapr_item_code           as gaprItemCode
-            ,t1.gapr_camp_code           as gaprCampCode
-            ,t2.camp_description         as gaprCampDescription
-            ,t1.gapr_city_stock_fi       as gaprCityStockFi
-            ,t1.gapr_city_stock_dr       as gaprCityStockDr
-            ,t1.gapr_city_stock_di       as gaprCityStockDi
-            ,t1.gapr_national_stock      as gaprNationalStock
-            ,t1.gapr_student_quantity    as gaprStudentQuantity
-            ,t1.gapr_demand              as gaprDemand
-            ,t1.gapr_gap                 as gaprGap
-            ,t1.gapr_item_active         as gaprItemActive
-            ,t1.gapr_title               as gaprTitle
-            ,t1.gapr_author              as gaprAuthor
-            ,t1.gapr_publisher           as gaprPublisher
+             t1.gapr_proc_id             as "gaprProcId"    
+            ,t1.gapr_proc_code           as "gaprProcCode"       
+            ,t1.gapr_academic_year       as "gaprAcademicYear"   
+            ,t1.gapr_academic_period     as "gaprAcademicPeriod"
+            ,t1.gapr_city_code           as "gaprCityCode"
+            ,t1.gapr_org_code            as "gaprOrgCode"
+            ,t1.gapr_scho_code           as "gaprSchoCode"
+            ,t3.scho_description         as "gaprSchoDescription"
+            ,t1.gapr_cours_code          as "gaprCoursCode"
+            ,t4.cours_description        as "gaprCoursDescription"
+            ,t1.gapr_item_code           as "gaprItemCode"
+            ,t1.gapr_camp_code           as "gaprCampCode"
+            ,t2.camp_description         as "gaprCampDescription"
+            ,t1.gapr_city_stock_fi       as "gaprCityStockFi"
+            ,t1.gapr_city_stock_dr       as "gaprCityStockDr"
+            ,t1.gapr_city_stock_di       as "gaprCityStockDi"
+            ,t1.gapr_national_stock      as "gaprNationalStock"
+            ,t1.gapr_student_quantity    as "gaprStudentQuantity"
+            ,t1.gapr_demand              as "gaprDemand"
+            ,t1.gapr_gap                 as "gaprGap"
+            ,t1.gapr_item_active         as "gaprItemActive"
+            ,t1.gapr_title               as "gaprTitle"
+            ,t1.gapr_author              as "gaprAuthor"
+            ,t1.gapr_publisher           as "gaprPublisher"
             ,CASE t1.gapr_volume
             WHEN 'X' THEN 'Sin Info.'
             ELSE t1.gapr_volume
-            END gaprVolume
-            ,coalesce(t1.gapr_observation,'CALCULO BRECHA NORMAL') gaprObservation
-        FROM tbl_gaps_dda_vs_stock t1
-    
+            END "gaprVolume"
+            ,coalesce(t1.gapr_observation,'CALCULO BRECHA NORMAL') "gaprObservation"
+        FROM tbl_gaps_stock_vs_dda t1
+
         LEFT JOIN tbl_campus t2 ON t2.camp_code   = t1.gapr_camp_code   AND t2.camp_org_code = t1.gapr_org_code
         LEFT JOIN tbl_schools t3 ON t3.scho_code  = t1.gapr_scho_code   AND t3.scho_org_code = t1.gapr_org_code
         LEFT JOIN tbl_courses t4 ON t4.cours_code = t1.gapr_cours_code  AND t4.cours_org_code= t1.gapr_org_code
-    
+
         WHERE
                     gapr_proc_id         = coalesce($1            ,gapr_proc_id)
+                AND gapr_proc_code       = coalesce($2            ,gapr_proc_code)
                 AND gapr_academic_year   = coalesce($3  ,gapr_academic_year)
                 AND gapr_academic_period = coalesce($4,gapr_academic_period)
                 AND gapr_city_code       = coalesce($5          ,gapr_city_code)
@@ -203,58 +207,45 @@ const gapCalculation = async ({
         , procDemand: header.procDemand
         , procStandard: header.procStandard
     }
-    const client = await pool.connect();
     let resultProcess;
-    let log;
     try {
-        await client.query('BEGIN');
-
-        // Insertar registro en tabla de procesos.
         resultProcess = await ProcessModel.createProcess(headerProcess);
-        log = {
-             proclProcId:resultProcess.procId
-            ,proclLog : `Gap Calculation ${headerProcess.procCode} started at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
+
+        const log = {
+             proclProcId: resultProcess.procId
+            ,proclLog: `Gap Calculation ${headerProcess.procCode} queued at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
         };
         await ProcessLogModel.createProcessLog(log);
 
-        // Ejecuta función PostgreSQL p01_run_brecha_bib
-        // TODO: La función p01_run_brecha_bib debe ser creada en PostgreSQL
-        await client.query(
-            'CALL p01_run_brecha_bib($1, $2, $3, $4, $5, $6)',
-            [resultProcess.procId, headerProcess.procCode, headerProcess.procPurcCode,
-             headerProcess.procStock, headerProcess.procDemand, headerProcess.procStandard]
-        );
+        const boss = await getBoss();
+        await boss.send(GAP_CALCULATION_QUEUE, {
+            procId: resultProcess.procId,
+            procCode: headerProcess.procCode,
+            procPurcCode: headerProcess.procPurcCode,
+            procStock: headerProcess.procStock,
+            procDemand: headerProcess.procDemand,
+            procStandard: headerProcess.procStandard,
+        });
 
-        await client.query('COMMIT');
         respuesta = {
             type: 'ok',
-            status: 200,
-            message: {status:"Brecha Calculation Succes",
-                      procCode:headerProcess.procCode},
+            status: 202,
+            message: { status: "Brecha Calculation Queued", procCode: headerProcess.procCode },
         };
-
-        log = {
-            proclProcId:resultProcess.procId
-           ,proclLog : `Gap Calculation Success:${headerProcess.procCode} ${JSON.stringify(respuesta.message)} at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
-        };
-        await ProcessLogModel.createProcessLog(log);
 
     } catch (error) {
-        await client.query('ROLLBACK');
         respuesta = {
             type: 'error',
             status: 400,
             message: error.message,
         };
 
-        log = {
-            proclProcId:resultProcess ? resultProcess.procId : null
-           ,proclLog : `Gap Calculation ${headerProcess.procCode} error at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
+        const log = {
+             proclProcId: resultProcess ? resultProcess.procId : null
+            ,proclLog: `Gap Calculation ${headerProcess.procCode} error at: ${new Date()} with procStock: ${headerProcess.procStock}, procDemand: ${headerProcess.procDemand}, procStandard: ${headerProcess.procStandard}`
         };
         await ProcessLogModel.createProcessLog(log);
-    } finally {
-        client.release();
-    };
+    }
 
     return respuesta;
 };

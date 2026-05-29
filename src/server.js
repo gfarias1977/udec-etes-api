@@ -2,6 +2,8 @@ const dotenv = require('dotenv');
 
 const {defaultEnv} = require('./config/config');
 const webApp = require('./services/webapp.js');
+const { startGapWorker } = require('./services/gapWorker');
+const { stopBoss } = require('./services/pgBoss');
 dotenv.config();
 
 async function startup() {
@@ -11,7 +13,7 @@ async function startup() {
         console.log(`Ambiente por defecto: **${defaultEnv}**`)
     };
        
-    try { 
+    try {
         console.log(`Inicializando módulo web en: **${process.env.PORT}**`);
         await webApp.initialize(process.env.PORT);
     } catch (err) {
@@ -22,9 +24,16 @@ async function startup() {
         console.log(`Inicializando módulo Base de Datos en: ${process.env.DATABASE_URL ? '(PostgreSQL/Neon)' : 'undefined'}`);
 
     } catch (err) {
-        
+
         console.error(err);
         process.exit(1); // Non-zero failure code
+    };
+    try {
+        console.log('Inicializando gap calculation worker (pg-boss)');
+        await startGapWorker();
+    } catch (err) {
+        console.error('Error al inicializar gap worker:', err);
+        process.exit(1);
     };
  
 }
@@ -38,11 +47,16 @@ async function shutdown(e) {
 
     try {
         console.log('Cerrando módulo servidor web');
-
         await webApp.close();
     } catch (e) {
         console.error(e);
-
+        err = err || e;
+    };
+    try {
+        console.log('Cerrando pg-boss');
+        await stopBoss();
+    } catch (e) {
+        console.error(e);
         err = err || e;
     };
 
